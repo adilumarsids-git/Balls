@@ -47,18 +47,30 @@ namespace Project.Networking.Fusion
 
             if (Runner.IsSharedModeMasterClient)
             {
-                State = MatchFlowState.WaitingForPlayers;
-                CurrentPlayers = 0;
-                CountdownTimer = default;
-                BackToMenuTimer = default;
-                WinnerName = default;
+                if (!Object.HasStateAuthority)
+                {
+                    Object.RequestStateAuthority();
+                }
+                else
+                {
+                    State = MatchFlowState.WaitingForPlayers;
+                    CurrentPlayers = 0;
+                    CountdownTimer = default;
+                    BackToMenuTimer = default;
+                    WinnerName = default;
+                }
             }
         }
 
         public override void FixedUpdateNetwork()
         {
+            if (Runner.IsSharedModeMasterClient && !Object.HasStateAuthority)
+            {
+                Object.RequestStateAuthority();
+            }
+
             // One source of truth in Shared Mode
-            if (!Runner.IsSharedModeMasterClient)
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority)
                 return;
 
             // Always refresh player count while not shutdown
@@ -112,7 +124,7 @@ namespace Project.Networking.Fusion
         {
             Debug.Log($"[Flow] NotifyEliminated called for {playerObj.name}");
 
-            if (!Runner.IsSharedModeMasterClient) return;
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority) return;
             if (State != MatchFlowState.Playing) return;
             if (playerObj == null) return;
 
@@ -242,7 +254,7 @@ namespace Project.Networking.Fusion
         public void RPC_ReportRingOut(NetworkObject playerObj)
         {
             // Only master processes ringouts
-            if (!Runner.IsSharedModeMasterClient) return;
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority) return;
 
             Debug.Log($"[Flow] Master received ringout for {playerObj.name}");
             NotifyEliminated(playerObj);
@@ -263,7 +275,7 @@ namespace Project.Networking.Fusion
         [Rpc(RpcSources.All, RpcTargets.All)]
         public void RPC_ReportConsumablePickup(NetworkObject consumableObj, NetworkObject playerObj, float sizeMul, float speedMul, float massMul)
         {
-            if (!Runner.IsSharedModeMasterClient) return; // master decides
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority) return; // master decides
             if (State != MatchFlowState.Playing) return;
             if (consumableObj == null || playerObj == null) return;
 

@@ -26,8 +26,8 @@ namespace Project.UI.Lobby
         [SerializeField] private SessionListItemUI listItemPrefab;
 
         [SerializeField] private TMP_Dropdown mapDropdown;
-        [SerializeField] private int mapABuildIndex = 3;
-        [SerializeField] private int mapBBuildIndex = 4;
+        [SerializeField] private int mapABuildIndex = 4;
+        [SerializeField] private int mapBBuildIndex = 5;
 
 
         private readonly List<SessionListItemUI> spawned = new List<SessionListItemUI> ();

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Fusion;
 using Fusion.Sockets;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Project.Networking.Fusion
 {
@@ -11,8 +12,9 @@ namespace Project.Networking.Fusion
     {
         [Header("Defaults")]
         [SerializeField] private GameMode gameMode = GameMode.Shared;
-        [SerializeField] private int gameplaySceneBuildIndex = 3; // Map A default
+        [SerializeField] private int gameplaySceneBuildIndex = 4; // Map A default
         [SerializeField] private SessionLobby lobby = SessionLobby.Shared; // Public lobby list
+        [SerializeField] private int menuSceneBuildIndex = 2; // 02_Menu
 
         private NetworkRunner runner;
         private PlayerSpawner spawner;
@@ -115,13 +117,28 @@ namespace Project.Networking.Fusion
             SessionListChanged?.Invoke(sessionList);
         }
 
+        private void ReturnToMenu()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (scene.buildIndex == menuSceneBuildIndex)
+                return;
+
+            SceneManager.LoadScene(menuSceneBuildIndex);
+        }
+
 
         // Unused
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
-        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason) { }
+        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+        {
+            ReturnToMenu();
+        }
         public void OnConnectedToServer(NetworkRunner runner) { }
-        public void OnDisconnectedFromServer(NetworkRunner runner) { }
+        public void OnDisconnectedFromServer(NetworkRunner runner)
+        {
+            ReturnToMenu();
+        }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
         public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
@@ -132,7 +149,10 @@ namespace Project.Networking.Fusion
         public void OnSceneLoadStart(NetworkRunner runner) { }
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
         public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
-        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+        {
+            ReturnToMenu();
+        }
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     }
 }

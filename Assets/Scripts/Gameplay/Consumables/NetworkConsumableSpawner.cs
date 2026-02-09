@@ -10,6 +10,18 @@ namespace Project.Game.Consumables
 
         private void Awake()
         {
+            RefreshPoints();
+        }
+
+        private void OnValidate()
+        {
+            RefreshPoints();
+        }
+
+        public bool HasSpawnPoints => points != null && points.Length > 1;
+
+        private void RefreshPoints()
+        {
             if (spawnPointsParent == null)
             {
                 var go = GameObject.Find("ConsumableSpawnPoints");
@@ -23,7 +35,7 @@ namespace Project.Game.Consumables
 
         public Vector3 GetRandomSpawnPosition()
         {
-            if (points == null || points.Length <= 1)
+            if (!HasSpawnPoints)
                 return Vector3.zero;
 
             int idx = Random.Range(1, points.Length);

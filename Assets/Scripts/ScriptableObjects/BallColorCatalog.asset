@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b8f2b16d2b67de438c7b5b1d8b9b9bf, type: 3}
+  m_Name: BallColorCatalog
+  m_EditorClassIdentifier: Project.Wallet.BallColorCatalogSO
+  colors:
+  - id: green
+    displayName: Green Ball
+    color: {r: 0.1, g: 0.85, b: 0.2, a: 1}
+    nftKeywords:
+    - Green
+  - id: blue
+    displayName: Blue Ball
+    color: {r: 0.2, g: 0.45, b: 1, a: 1}
+    nftKeywords:
+    - Blue
+  - id: red
+    displayName: Red Ball
+    color: {r: 1, g: 0.2, b: 0.2, a: 1}
+    nftKeywords:
+    - Red

@@ -1,6 +1,7 @@
 ﻿using Fusion;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using Project.Game.Consumables;
 
 namespace Project.Networking.Fusion
 {
@@ -38,7 +39,9 @@ namespace Project.Networking.Fusion
         [Networked] public NetworkString<_32> WinnerName { get; private set; }
         public bool IsReady { get; private set; }
         [Header("Consumables")]
+        [SerializeField] private NetworkPrefabRef consumablePrefab;
         [SerializeField] private float consumableRespawnSeconds = 3f;
+        private NetworkConsumable activeConsumable;
 
         public override void Spawned()
         {
@@ -89,7 +92,10 @@ namespace Project.Networking.Fusion
 
             // If match already started, don’t auto-change state here
             if (State == MatchFlowState.Playing)
+            {
+                EnsureConsumableSpawned();
                 return;
+            }
 
             // Waiting for players
             if (CurrentPlayers < requiredPlayers)
@@ -114,6 +120,49 @@ namespace Project.Networking.Fusion
                 CountdownTimer = default;
                 return;
             }
+
+        }
+
+        private void EnsureConsumableSpawned()
+        {
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority)
+                return;
+
+            if (activeConsumable == null)
+                activeConsumable = FindObjectOfType<NetworkConsumable>(true);
+
+            if (activeConsumable != null)
+                return;
+
+            if (!consumablePrefab.IsValid)
+                return;
+
+            Vector3 pos = GetRandomConsumablePosition();
+            var spawnedObj = Runner.Spawn(consumablePrefab, pos, Quaternion.identity, Runner.LocalPlayer);
+            if (spawnedObj != null)
+            {
+                activeConsumable = spawnedObj.GetComponent<NetworkConsumable>();
+                if (activeConsumable != null)
+                    activeConsumable.SetActiveState(true);
+            }
+        }
+
+        private Vector3 GetRandomConsumablePosition()
+        {
+            var spawner = FindObjectOfType<NetworkConsumableSpawner>();
+            if (spawner != null && spawner.HasSpawnPoints)
+                return spawner.GetRandomSpawnPosition();
+
+            var parent = GameObject.Find("ConsumableSpawnPoints");
+            if (parent == null)
+                return Vector3.zero;
+
+            var points = parent.GetComponentsInChildren<Transform>(true);
+            if (points.Length <= 1)
+                return parent.transform.position;
+
+            int idx = Random.Range(1, points.Length);
+            return points[idx].position;
         }
 
         /// <summary>
@@ -295,7 +344,7 @@ namespace Project.Networking.Fusion
             if (cons == null) return;
 
             // Hide on all
-            cons.SetActiveVisual(false);
+            cons.SetActiveState(false);
 
             // Apply effect to the player (player's StateAuthority will actually simulate)
             var ctrl = playerObj.GetComponent<NetworkPlayerController>();
@@ -311,10 +360,7 @@ namespace Project.Networking.Fusion
             yield return new WaitForSeconds(delay);
 
             // Master chooses new position then broadcasts
-            var spawner = FindObjectOfType<Project.Game.Consumables.NetworkConsumableSpawner>();
-            if (spawner == null) yield break;
-
-            Vector3 pos = spawner.GetRandomSpawnPosition();
+            Vector3 pos = GetRandomConsumablePosition();
             RPC_RespawnConsumable(obj, pos);
         }
 
@@ -326,7 +372,7 @@ namespace Project.Networking.Fusion
 
             var cons = obj.GetComponent<Project.Game.Consumables.NetworkConsumable>();
             if (cons != null)
-                cons.SetActiveVisual(true);
+                cons.SetActiveState(true);
         }
 
 

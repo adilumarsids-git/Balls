@@ -146,6 +146,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Project.Game.Consumables.NetworkConsumable
   _IsActive:
     _value: 1
-  sizeMultiplier: 1.15
-  speedMultiplier: 1.1
-  massMultiplier: 1.1
+  config: {fileID: 11400000, guid: 9e21fca921982c14b8b9a897d35efa15, type: 2}

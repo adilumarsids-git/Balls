@@ -40,8 +40,10 @@ namespace Project.Networking.Fusion
         public bool IsReady { get; private set; }
         [Header("Consumables")]
         [SerializeField] private NetworkPrefabRef consumablePrefab;
+        [SerializeField] private float consumableInitialSpawnDelay = 10f;
         [SerializeField] private float consumableRespawnSeconds = 3f;
         private NetworkConsumable activeConsumable;
+        [Networked] private TickTimer ConsumableSpawnTimer { get; set; }
 
         public override void Spawned()
         {
@@ -61,6 +63,7 @@ namespace Project.Networking.Fusion
                     CountdownTimer = default;
                     BackToMenuTimer = default;
                     WinnerName = default;
+                    ConsumableSpawnTimer = default;
                 }
             }
         }
@@ -93,6 +96,10 @@ namespace Project.Networking.Fusion
             // If match already started, don’t auto-change state here
             if (State == MatchFlowState.Playing)
             {
+                if (!ConsumableSpawnTimer.IsRunning)
+                {
+                    ConsumableSpawnTimer = TickTimer.CreateFromSeconds(Runner, consumableInitialSpawnDelay);
+                }
                 EnsureConsumableSpawned();
                 return;
             }
@@ -118,6 +125,7 @@ namespace Project.Networking.Fusion
             {
                 State = MatchFlowState.Playing;
                 CountdownTimer = default;
+                ConsumableSpawnTimer = TickTimer.CreateFromSeconds(Runner, consumableInitialSpawnDelay);
                 return;
             }
 
@@ -130,6 +138,9 @@ namespace Project.Networking.Fusion
 
             if (activeConsumable == null)
                 activeConsumable = FindObjectOfType<NetworkConsumable>(true);
+
+            if (ConsumableSpawnTimer.IsRunning && !ConsumableSpawnTimer.Expired(Runner))
+                return;
 
             if (activeConsumable != null)
                 return;

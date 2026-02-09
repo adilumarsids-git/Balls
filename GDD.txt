@@ -1,0 +1,35 @@
+Balls
+Multiplayer web3 game where players log in with a spherical character and try to knock each other off of the map. Players should be able to chose from any of their NFTs through use of plug in wallet. The NFTs will lead have distinct characteristics when logging into the game(colour, mesh, etc).
+
+There should be a lobby system where players can create and/or join lobbies. 
+
+Game play:
+
+4 players will spawn into the game all equal distance from the centre. Here players will try to push each other off of the map, which should be some sort of island. A consumable item spawns. If the player consumes it they increase in mass, speed and size. This item should be destroyed when collided with by a player. Once the consumable item is destroyed it should respawn within 3 seconds. Its spawn location should always be a random location on the map.
+
+Player Movement:
+
+Controlled using arrow keys, only move on Y & X axis. Speed should be a variable that increases when player consumes the item. Mass should be a variable that increases after consuming item. Size should be a variable that increases when consuming item. 
+
+Bump:
+When players collide their movement into each other should be exaggerated. So if both players collide at the same speed they should bounce off each other in the opposite direction they were traveling in.
+
+Boost:
+
+Players should be able to place the space bar that will multiply their speed by 150%. This should work as a turbo in the sense that they can use this to change direction as well.
+
+Scoreboard:
+
+Daily scoreboard where players can see which player has had the most wins for the day. This data should be stored on the scoreboard based on the Asset with the most wins. I.e. if a player wins three games with 1 nft then another game with a different nft both of these NFTs should be on the scoreboard as 3 and 1.
+
+NDA
+Will it be possible for you to agree and sign an NDA? To protect Intellectual property? 
+
+
+Key deliverables:
+- Multiplayer with no latency or ping.
+- Two maps, both with ring out potential (islands)
+- 5 sphere NFTs all with different colours. But on Solana Blockchain.
+- Lobby system for players to host and join games.
+- Daily Scoreboard where players can see which player has had the most wins on the day.
+- NDA

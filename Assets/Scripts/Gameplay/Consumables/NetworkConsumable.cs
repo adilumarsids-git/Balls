@@ -2,6 +2,7 @@
 using UnityEngine;
 using Project.Networking.Fusion;
 using Project.Gameplay.Player;
+using Project.Data;
 
 namespace Project.Game.Consumables
 {
@@ -10,10 +11,24 @@ namespace Project.Game.Consumables
     {
         [Networked] public NetworkBool IsActive { get; private set; } = true;
 
-        // Optional: you can sync a type id later (different consumables)
-        [SerializeField] private float sizeMultiplier = 1.15f;
-        [SerializeField] private float speedMultiplier = 1.10f;
-        [SerializeField] private float massMultiplier = 1.10f;
+        [SerializeField] private ConsumableConfigSO config;
+
+        private Renderer[] cachedRenderers;
+        private Collider[] cachedColliders;
+
+        public override void Spawned()
+        {
+            CacheComponents();
+            SetActiveVisual(IsActive);
+        }
+
+        private void CacheComponents()
+        {
+            if (cachedRenderers == null || cachedRenderers.Length == 0)
+                cachedRenderers = GetComponentsInChildren<Renderer>(true);
+            if (cachedColliders == null || cachedColliders.Length == 0)
+                cachedColliders = GetComponentsInChildren<Collider>(true);
+        }
 
         private void OnTriggerEnter(Collider other)
         {
@@ -33,14 +48,42 @@ namespace Project.Game.Consumables
             if (flow == null || !flow.IsReady) return;
             if (flow.State != MatchFlowState.Playing) return;
 
+            if (config == null)
+            {
+                Debug.LogWarning("[Consumable] Missing ConsumableConfigSO, skipping pickup.");
+                return;
+            }
+
+            float sizeMultiplier = 1f + (config.sizeAdd * config.sizeScaleFactor);
+            float speedMultiplier = 1f + config.speedAdd;
+            float massMultiplier = 1f + config.massAdd;
+
             // Report pickup to master (single source of truth)
             flow.RPC_ReportConsumablePickup(Object, playerObj, sizeMultiplier, speedMultiplier, massMultiplier);
         }
 
+        public void SetActiveState(bool active)
+        {
+            if (Object.HasStateAuthority)
+                IsActive = active;
+
+            SetActiveVisual(active);
+        }
+
         public void SetActiveVisual(bool active)
         {
-            // Local visual control
-            gameObject.SetActive(active);
+            CacheComponents();
+            if (cachedRenderers != null)
+            {
+                foreach (var r in cachedRenderers)
+                    r.enabled = active;
+            }
+
+            if (cachedColliders != null)
+            {
+                foreach (var c in cachedColliders)
+                    c.enabled = active;
+            }
         }
     }
 }

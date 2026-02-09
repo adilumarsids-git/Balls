@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
+using TMPro;
 using Project.Core;
 
 namespace Project.Wallet
@@ -9,7 +10,7 @@ namespace Project.Wallet
     public class MenuColorSelectionUI : MonoBehaviour
     {
         [SerializeField] private BallColorCatalogSO colorCatalog;
-        [SerializeField] private Dropdown dropdown;
+        [SerializeField] private TMP_Dropdown dropdown;
 
         private void Awake()
         {
@@ -50,7 +51,7 @@ namespace Project.Wallet
             rect.anchoredPosition = new Vector2(-30f, -30f);
             rect.sizeDelta = new Vector2(240f, 40f);
             dropdownGO.AddComponent<Image>().color = Color.white;
-            dropdown = dropdownGO.AddComponent<Dropdown>();
+            dropdown = dropdownGO.AddComponent<TMP_Dropdown>();
             dropdown.captionText = CreateLabel(dropdownGO.transform, "Label");
             dropdown.template = CreateTemplate(dropdownGO.transform);
         }
@@ -72,7 +73,7 @@ namespace Project.Wallet
                 string label = $"Color {index}";
                 if (colors != null && index >= 0 && index < colors.Count)
                     label = colors[index].displayName;
-                dropdown.options.Add(new Dropdown.OptionData(label));
+                dropdown.options.Add(new TMP_Dropdown.OptionData(label));
             }
 
             dropdown.value = 0;
@@ -89,7 +90,7 @@ namespace Project.Wallet
                 WalletProfile.SelectedColorIndex = owned[dropdownIndex];
         }
 
-        private static Text CreateLabel(Transform parent, string name)
+        private static TMP_Text CreateLabel(Transform parent, string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -98,10 +99,9 @@ namespace Project.Wallet
             rect.anchorMax = new Vector2(1f, 1f);
             rect.offsetMin = new Vector2(10f, 6f);
             rect.offsetMax = new Vector2(-10f, -6f);
-            var text = go.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            var text = go.AddComponent<TextMeshProUGUI>();
             text.color = Color.black;
-            text.alignment = TextAnchor.MiddleLeft;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
             return text;
         }
 
@@ -150,10 +150,9 @@ namespace Project.Wallet
             item.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.95f, 1f);
             var label = new GameObject("Item Label");
             label.transform.SetParent(item.transform, false);
-            var text = label.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            var text = label.AddComponent<TextMeshProUGUI>();
             text.color = Color.black;
-            text.alignment = TextAnchor.MiddleLeft;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
             var labelRect = label.GetComponent<RectTransform>();
             labelRect.anchorMin = new Vector2(0f, 0f);
             labelRect.anchorMax = new Vector2(1f, 1f);

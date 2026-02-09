@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 using Project.Core;
 
 namespace Project.Wallet
@@ -16,11 +17,11 @@ namespace Project.Wallet
         [SerializeField] private int menuSceneBuildIndex = 2;
 
         [Header("Runtime UI")]
-        [SerializeField] private InputField walletInputField;
+        [SerializeField] private TMP_InputField walletInputField;
         [SerializeField] private Button connectButton;
-        [SerializeField] private Dropdown colorDropdown;
+        [SerializeField] private TMP_Dropdown colorDropdown;
         [SerializeField] private Button continueButton;
-        [SerializeField] private Text statusText;
+        [SerializeField] private TMP_Text statusText;
 
         private MagicEdenNftClient nftClient;
 
@@ -163,7 +164,7 @@ namespace Project.Wallet
                 string label = $"Color {index}";
                 if (colors != null && index >= 0 && index < colors.Count)
                     label = colors[index].displayName;
-                colorDropdown.options.Add(new Dropdown.OptionData(label));
+                colorDropdown.options.Add(new TMP_Dropdown.OptionData(label));
             }
 
             colorDropdown.value = 0;
@@ -209,7 +210,7 @@ namespace Project.Wallet
             return rect;
         }
 
-        private static Text CreateText(RectTransform parent, string name, string text)
+        private static TMP_Text CreateText(RectTransform parent, string name, string text)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -219,15 +220,14 @@ namespace Project.Wallet
             rect.pivot = new Vector2(0.5f, 1f);
             rect.anchoredPosition = new Vector2(0f, -20f);
             rect.sizeDelta = new Vector2(520, 40);
-            var textComp = go.AddComponent<Text>();
-            textComp.alignment = TextAnchor.MiddleCenter;
+            var textComp = go.AddComponent<TextMeshProUGUI>();
+            textComp.alignment = TextAlignmentOptions.Center;
             textComp.color = Color.white;
             textComp.text = text;
-            textComp.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
             return textComp;
         }
 
-        private static InputField CreateInput(RectTransform parent, string name, string placeholder)
+        private static TMP_InputField CreateInput(RectTransform parent, string name, string placeholder)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -239,13 +239,13 @@ namespace Project.Wallet
 
             var image = go.AddComponent<Image>();
             image.color = Color.white;
-            var input = go.AddComponent<InputField>();
+            var input = go.AddComponent<TMP_InputField>();
             input.textComponent = CreateInputText(go.transform, "Text");
             input.placeholder = CreatePlaceholder(go.transform, placeholder);
             return input;
         }
 
-        private static Text CreateInputText(Transform parent, string name)
+        private static TMP_Text CreateInputText(Transform parent, string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -254,14 +254,13 @@ namespace Project.Wallet
             rect.anchorMax = new Vector2(1f, 1f);
             rect.offsetMin = new Vector2(10f, 6f);
             rect.offsetMax = new Vector2(-10f, -6f);
-            var text = go.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            var text = go.AddComponent<TextMeshProUGUI>();
             text.color = Color.black;
-            text.alignment = TextAnchor.MiddleLeft;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
             return text;
         }
 
-        private static Text CreatePlaceholder(Transform parent, string textValue)
+        private static TMP_Text CreatePlaceholder(Transform parent, string textValue)
         {
             var go = new GameObject("Placeholder");
             go.transform.SetParent(parent, false);
@@ -270,11 +269,10 @@ namespace Project.Wallet
             rect.anchorMax = new Vector2(1f, 1f);
             rect.offsetMin = new Vector2(10f, 6f);
             rect.offsetMax = new Vector2(-10f, -6f);
-            var text = go.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            var text = go.AddComponent<TextMeshProUGUI>();
             text.color = new Color(0.4f, 0.4f, 0.4f, 1f);
             text.text = textValue;
-            text.alignment = TextAnchor.MiddleLeft;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
             return text;
         }
 
@@ -299,16 +297,15 @@ namespace Project.Wallet
             textRect.anchorMax = new Vector2(1f, 1f);
             textRect.offsetMin = Vector2.zero;
             textRect.offsetMax = Vector2.zero;
-            var textComp = text.AddComponent<Text>();
-            textComp.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            var textComp = text.AddComponent<TextMeshProUGUI>();
             textComp.text = label;
-            textComp.alignment = TextAnchor.MiddleCenter;
+            textComp.alignment = TextAlignmentOptions.Center;
             textComp.color = Color.white;
 
             return button;
         }
 
-        private static Dropdown CreateDropdown(RectTransform parent, string name)
+        private static TMP_Dropdown CreateDropdown(RectTransform parent, string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -320,13 +317,13 @@ namespace Project.Wallet
 
             var image = go.AddComponent<Image>();
             image.color = Color.white;
-            var dropdown = go.AddComponent<Dropdown>();
+            var dropdown = go.AddComponent<TMP_Dropdown>();
             dropdown.captionText = CreateDropdownText(go.transform, "Label");
             dropdown.template = CreateDropdownTemplate(go.transform);
             return dropdown;
         }
 
-        private static Text CreateDropdownText(Transform parent, string name)
+        private static TMP_Text CreateDropdownText(Transform parent, string name)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
@@ -335,10 +332,9 @@ namespace Project.Wallet
             rect.anchorMax = new Vector2(1f, 1f);
             rect.offsetMin = new Vector2(10f, 6f);
             rect.offsetMax = new Vector2(-10f, -6f);
-            var text = go.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            var text = go.AddComponent<TextMeshProUGUI>();
             text.color = Color.black;
-            text.alignment = TextAnchor.MiddleLeft;
+            text.alignment = TextAlignmentOptions.MidlineLeft;
             return text;
         }
 
@@ -391,10 +387,9 @@ namespace Project.Wallet
             item.AddComponent<Image>().color = new Color(0.95f, 0.95f, 0.95f, 1f);
             var itemLabel = new GameObject("Item Label");
             itemLabel.transform.SetParent(item.transform, false);
-            var labelText = itemLabel.AddComponent<Text>();
-            labelText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            var labelText = itemLabel.AddComponent<TextMeshProUGUI>();
             labelText.color = Color.black;
-            labelText.alignment = TextAnchor.MiddleLeft;
+            labelText.alignment = TextAlignmentOptions.MidlineLeft;
             var labelRect = itemLabel.GetComponent<RectTransform>();
             labelRect.anchorMin = new Vector2(0f, 0f);
             labelRect.anchorMax = new Vector2(1f, 1f);

@@ -126,7 +126,7 @@ namespace Project.Wallet
                 UpdateStatus($"NFT fetch failed: {error}");
                 WalletProfile.SetOwnedColors(new[] { 0 });
                 PopulateOptions();
-                return;
+                yield break;
             }
 
             ApplyOwnedColors(tokens);

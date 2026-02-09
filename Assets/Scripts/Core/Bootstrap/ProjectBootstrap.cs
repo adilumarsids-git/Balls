@@ -5,7 +5,8 @@ namespace Project.Core.Bootstrap
 {
     public class ProjectBootstrap : MonoBehaviour
     {
-        [SerializeField] private int menuSceneBuildIndex = 1; // 01_Menu
+        [SerializeField] private int walletSceneBuildIndex = 1; // 01_WalletConnect
+        [SerializeField] private int menuSceneBuildIndex = 2; // 02_Menu
 
         private static bool booted;
 
@@ -23,10 +24,10 @@ namespace Project.Core.Bootstrap
 
         private void Start()
         {
-            // If we are in bootstrap scene, go to menu
+            // If we are in bootstrap scene, go to wallet connect
             if (SceneManager.GetActiveScene().buildIndex == 0)
             {
-                SceneManager.LoadScene(menuSceneBuildIndex);
+                SceneManager.LoadScene(walletSceneBuildIndex);
             }
         }
     }

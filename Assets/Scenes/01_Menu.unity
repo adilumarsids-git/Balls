@@ -3764,8 +3764,8 @@ MonoBehaviour:
   listParent: {fileID: 1302678596}
   listItemPrefab: {fileID: 5785516603187169540, guid: c763c1036efb3e3418e416c4c902b95b, type: 3}
   mapDropdown: {fileID: 283517920}
-  mapABuildIndex: 3
-  mapBBuildIndex: 4
+  mapABuildIndex: 4
+  mapBBuildIndex: 5
   nameInput: {fileID: 1706140625}
 --- !u!4 &1809924381
 Transform:
@@ -3777,6 +3777,52 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 1007.65314, y: 420.60248, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &2034578123
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2034578124}
+  - component: {fileID: 2034578125}
+  m_Layer: 0
+  m_Name: MenuColorSelectionUI
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2034578125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2034578123}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d5d52f1d8b247f5a9d7a48a3d61e2f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  colorCatalog: {fileID: 11400000, guid: 6e7d28e0c8a34a84a8c0f2a8c63a88b5, type: 2}
+  dropdown: {fileID: 0}
+--- !u!4 &2034578124
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2034578123}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

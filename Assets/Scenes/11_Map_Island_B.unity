@@ -715,7 +715,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
   SortKey: 720038200
   ObjectInterest: 1
-  Flags: 262145
+  Flags: 131073
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 706439189}
@@ -2422,6 +2422,9 @@ MonoBehaviour:
   countdownSeconds: 3
   _State: 0
   _CurrentPlayers: 0
+  consumablePrefab:
+    RawGuidValue: e8a56a8a97927c74a98c450caf64316e
+  consumableRespawnSeconds: 3
 --- !u!114 &2071398471
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2436,7 +2439,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
   SortKey: 198953018
   ObjectInterest: 1
-  Flags: 262145
+  Flags: 131073
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 2071398470}

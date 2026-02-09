@@ -148,6 +148,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f1f35eb5c2a3d2e46a63fac83560f49e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Project.Core.Bootstrap.ProjectBootstrap
+  walletSceneBuildIndex: 1
+  menuSceneBuildIndex: 2
 --- !u!4 &394949207
 Transform:
   m_ObjectHideFlags: 0
@@ -429,7 +431,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Project.Networking.Fusion.FusionLauncher
   sessionName: DEV_ROOM
   gameMode: 2
-  gameplaySceneBuildIndex: 3
+  gameplaySceneBuildIndex: 4
+  menuSceneBuildIndex: 2
 --- !u!114 &1781283080
 MonoBehaviour:
   m_ObjectHideFlags: 0

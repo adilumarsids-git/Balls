@@ -11,8 +11,10 @@ namespace Project.Networking.Fusion
         [SerializeField] private BallColorCatalogSO colorCatalog;
         [SerializeField] private Renderer targetRenderer;
 
-        [Networked(OnChanged = nameof(OnColorChanged))]
+        [Networked]
         private int ColorIndex { get; set; }
+
+        private int lastAppliedColorIndex = -1;
 
         public override void Spawned()
         {
@@ -23,11 +25,6 @@ namespace Project.Networking.Fusion
                 ColorIndex = WalletProfile.SelectedColorIndex;
 
             ApplyColor(ColorIndex);
-        }
-
-        private static void OnColorChanged(Changed<NetworkPlayerAppearance> changed)
-        {
-            changed.Behaviour.ApplyColor(changed.Behaviour.ColorIndex);
         }
 
         private void ApplyColor(int index)
@@ -45,6 +42,14 @@ namespace Project.Networking.Fusion
 
             if (targetRenderer.material != null)
                 targetRenderer.material.color = entry.color;
+
+            lastAppliedColorIndex = index;
+        }
+
+        public override void Render()
+        {
+            if (lastAppliedColorIndex != ColorIndex)
+                ApplyColor(ColorIndex);
         }
     }
 }

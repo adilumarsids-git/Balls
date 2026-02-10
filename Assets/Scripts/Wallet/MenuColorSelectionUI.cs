@@ -8,9 +8,8 @@ namespace Project.Wallet
         {
             base.Awake();
 
+            // Keep leaderboard service available, but UI is now manually wired by designer.
             NftLeaderboardService.FindOrCreate();
-            if (GetComponent<MenuLeaderboardPanel>() == null)
-                gameObject.AddComponent<MenuLeaderboardPanel>();
         }
 
         protected override void Start()

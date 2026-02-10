@@ -16,7 +16,7 @@ namespace Project.Wallet
         public static WalletSession Instance { get; private set; }
 
         [Header("NFT Filters")]
-        [SerializeField] private string collectionSymbol = "";
+        [SerializeField] private WalletCollectionConfigSO collectionConfig;
         [SerializeField] private List<string> allowedMintAddresses = new List<string>();
 
         [Header("Catalog")]
@@ -64,6 +64,13 @@ namespace Project.Wallet
                 if (catalogs.Length > 0)
                     colorCatalog = catalogs[0];
             }
+
+            if (collectionConfig == null)
+            {
+                var configs = Resources.FindObjectsOfTypeAll<WalletCollectionConfigSO>();
+                if (configs.Length > 0)
+                    collectionConfig = configs[0];
+            }
         }
 
         public async Task ConnectAsync()
@@ -90,11 +97,11 @@ namespace Project.Wallet
                 }
                 else
                 {
-                    var account = await Web3.Instance.LoginWalletAdapter();
-                    if (account == null)
+                    var publicKey = await LoginWalletAdapterAsync();
+                    if (string.IsNullOrWhiteSpace(publicKey))
                         throw new System.Exception("Wallet connection failed.");
 
-                    OnWalletConnected(account.PublicKey.ToString());
+                    OnWalletConnected(publicKey);
                 }
             }
             catch (System.Exception ex)
@@ -203,7 +210,7 @@ namespace Project.Wallet
             var results = new List<NftInfo>();
 
             if (tokenAccounts == null || tokenAccounts.Length == 0)
-                return results;
+                return EnsureDefaultIfNeeded(results);
 
             foreach (var tokenAccount in tokenAccounts)
             {
@@ -224,7 +231,9 @@ namespace Project.Wallet
                 var symbol = nft.metaplexData?.data?.offchainData?.symbol;
                 var imageUrl = nft.metaplexData?.data?.offchainData?.default_image;
 
-                if (!IsCollectionMatch(symbol))
+                var collectionKey = ResolveCollectionKey(nft);
+                var collectionName = ResolveCollectionName(nft);
+                if (!IsCollectionMatch(symbol, collectionKey, collectionName))
                     continue;
 
                 if (colorCatalog == null || !colorCatalog.TryGetSkinIdByName(name, out var skinId))
@@ -239,7 +248,36 @@ namespace Project.Wallet
                 });
             }
 
-            return results;
+            return EnsureDefaultIfNeeded(results);
+        }
+
+        private async Task<string> LoginWalletAdapterAsync()
+        {
+            if (Web3.Wallet?.Account?.PublicKey != null)
+                return Web3.Wallet.Account.PublicKey.ToString();
+
+            var tcs = new TaskCompletionSource<string>();
+
+            void HandleWalletChange()
+            {
+                if (Web3.Wallet?.Account?.PublicKey != null)
+                    tcs.TrySetResult(Web3.Wallet.Account.PublicKey.ToString());
+            }
+
+            Web3.OnWalletChangeState += HandleWalletChange;
+
+            try
+            {
+                var account = await Web3.Instance.LoginWalletAdapter();
+                if (account?.PublicKey != null)
+                    tcs.TrySetResult(account.PublicKey.ToString());
+
+                return await tcs.Task;
+            }
+            finally
+            {
+                Web3.OnWalletChangeState -= HandleWalletChange;
+            }
         }
 
         private bool HasTokenBalance(TokenAccount tokenAccount)
@@ -259,12 +297,75 @@ namespace Project.Wallet
             return allowedMintAddresses.Contains(mint);
         }
 
-        private bool IsCollectionMatch(string symbol)
+        private bool IsCollectionMatch(string symbol, string collectionKey, string collectionName)
         {
-            if (string.IsNullOrWhiteSpace(collectionSymbol))
+            if (collectionConfig == null)
                 return true;
 
-            return string.Equals(symbol, collectionSymbol, System.StringComparison.OrdinalIgnoreCase);
+            return collectionConfig.Matches(symbol, collectionKey, collectionName);
+        }
+
+        private List<NftInfo> EnsureDefaultIfNeeded(List<NftInfo> results)
+        {
+            if (results.Count > 0)
+                return results;
+
+            if (collectionConfig != null && !collectionConfig.AllowDefaultSkin)
+                return results;
+
+            var defaultNft = CreateDefaultNft();
+            if (defaultNft != null)
+                results.Add(defaultNft);
+
+            return results;
+        }
+
+        private NftInfo CreateDefaultNft()
+        {
+            if (colorCatalog == null || colorCatalog.Colors.Count == 0)
+                return null;
+
+            var entry = colorCatalog.Colors[0];
+            var skinId = string.IsNullOrWhiteSpace(entry.id) ? "0" : entry.id;
+            var name = string.IsNullOrWhiteSpace(entry.displayName) ? "Default Ball" : entry.displayName;
+
+            return new NftInfo
+            {
+                Name = name,
+                Mint = string.Empty,
+                SkinId = skinId,
+                ImageUrl = null
+            };
+        }
+
+        private static string ResolveCollectionKey(Nft.Nft nft)
+        {
+            if (nft?.metaplexData?.data == null)
+                return null;
+
+            var onchainData = GetPropertyValue(nft.metaplexData.data, "onchainData");
+            var collection = GetPropertyValue(onchainData, "collection");
+            return GetPropertyValue(collection, "key")?.ToString();
+        }
+
+        private static string ResolveCollectionName(Nft.Nft nft)
+        {
+            var offchain = nft?.metaplexData?.data?.offchainData;
+            var collection = GetPropertyValue(offchain, "collection");
+            var name = GetPropertyValue(collection, "name")?.ToString();
+            if (!string.IsNullOrWhiteSpace(name))
+                return name;
+
+            return GetPropertyValue(collection, "family")?.ToString();
+        }
+
+        private static object GetPropertyValue(object target, string propertyName)
+        {
+            if (target == null || string.IsNullOrWhiteSpace(propertyName))
+                return null;
+
+            var prop = target.GetType().GetProperty(propertyName);
+            return prop != null ? prop.GetValue(target) : null;
         }
     }
 }

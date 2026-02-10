@@ -78,13 +78,15 @@ namespace Project.Wallet
             if (IsConnected)
                 return;
 
-            if (connectTcs != null)
+            var pendingConnect = connectTcs;
+            if (pendingConnect != null)
             {
-                await connectTcs.Task;
+                await pendingConnect.Task;
                 return;
             }
 
             connectTcs = new TaskCompletionSource<string>();
+            pendingConnect = connectTcs;
 
             try
             {
@@ -109,7 +111,15 @@ namespace Project.Wallet
                 OnWalletError(ex.Message);
             }
 
-            await connectTcs.Task;
+            try
+            {
+                await pendingConnect.Task;
+            }
+            finally
+            {
+                if (ReferenceEquals(connectTcs, pendingConnect))
+                    connectTcs = null;
+            }
         }
 
         public async Task<List<NftInfo>> FetchOwnedNftsAsync()
@@ -191,14 +201,12 @@ namespace Project.Wallet
             WalletProfile.WalletAddress = WalletAddress;
 
             connectTcs?.TrySetResult(WalletAddress);
-            connectTcs = null;
         }
 
         public void OnWalletError(string message)
         {
             IsConnected = false;
             connectTcs?.TrySetException(new Exception(message));
-            connectTcs = null;
         }
 
         private async Task<List<NftInfo>> LoadOwnedNftsAsync()

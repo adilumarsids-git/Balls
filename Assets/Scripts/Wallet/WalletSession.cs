@@ -338,19 +338,23 @@ namespace Project.Wallet
             };
         }
 
-        private static string ResolveCollectionKey(Nft.Nft nft)
+        private static string ResolveCollectionKey(object nft)
         {
-            if (nft?.metaplexData?.data == null)
+            var metaplexData = GetPropertyValue(nft, "metaplexData");
+            var data = GetPropertyValue(metaplexData, "data");
+            if (data == null)
                 return null;
 
-            var onchainData = GetPropertyValue(nft.metaplexData.data, "onchainData");
+            var onchainData = GetPropertyValue(data, "onchainData");
             var collection = GetPropertyValue(onchainData, "collection");
             return GetPropertyValue(collection, "key")?.ToString();
         }
 
-        private static string ResolveCollectionName(Nft.Nft nft)
+        private static string ResolveCollectionName(object nft)
         {
-            var offchain = nft?.metaplexData?.data?.offchainData;
+            var metaplexData = GetPropertyValue(nft, "metaplexData");
+            var data = GetPropertyValue(metaplexData, "data");
+            var offchain = GetPropertyValue(data, "offchainData");
             var collection = GetPropertyValue(offchain, "collection");
             var name = GetPropertyValue(collection, "name")?.ToString();
             if (!string.IsNullOrWhiteSpace(name))

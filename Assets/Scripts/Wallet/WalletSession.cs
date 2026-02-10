@@ -256,20 +256,38 @@ namespace Project.Wallet
             if (Web3.Wallet?.Account?.PublicKey != null)
                 return Web3.Wallet.Account.PublicKey.ToString();
 
-            var account = await Web3.Instance.LoginWalletAdapter();
-            if (account?.PublicKey != null)
-                return account.PublicKey.ToString();
+            var tcs = new TaskCompletionSource<string>();
 
-            // Some wallet adapters complete approval before Web3.Wallet is fully populated.
-            // Wait briefly for SDK state to propagate so the first connect click succeeds.
-            const int timeoutMs = 7000;
-            var timeoutAt = DateTime.UtcNow.AddMilliseconds(timeoutMs);
-            while (Web3.Wallet?.Account?.PublicKey == null && DateTime.UtcNow < timeoutAt)
+            void HandleWalletChange()
             {
-                await UniTask.Delay(100);
+                if (Web3.Wallet?.Account?.PublicKey != null)
+                    tcs.TrySetResult(Web3.Wallet.Account.PublicKey.ToString());
             }
 
-            return Web3.Wallet?.Account?.PublicKey?.ToString();
+            Web3.OnWalletChangeState += HandleWalletChange;
+
+            try
+            {
+                // IMPORTANT: this must be invoked directly from the user's button click flow.
+                // Wallet adapters (Phantom) may block popup/deeplink if login starts outside user gesture.
+                var account = await Web3.Instance.LoginWalletAdapter();
+                if (account?.PublicKey != null)
+                    return account.PublicKey.ToString();
+
+                const int timeoutMs = 12000;
+                var timeoutTask = Task.Delay(timeoutMs);
+                var completed = await Task.WhenAny(tcs.Task, timeoutTask);
+
+                if (completed == tcs.Task)
+                    return await tcs.Task;
+
+                // Final snapshot check after timeout in case state landed right at boundary.
+                return Web3.Wallet?.Account?.PublicKey?.ToString();
+            }
+            finally
+            {
+                Web3.OnWalletChangeState -= HandleWalletChange;
+            }
         }
 
         private bool HasTokenBalance(TokenAccount tokenAccount)

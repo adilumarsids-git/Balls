@@ -13,6 +13,9 @@ namespace Project.Networking.Fusion
         [Networked]
         private NetworkString<_64> SelectedNftId { get; set; }
 
+        [Networked]
+        private NetworkString<_64> SelectedNftMint { get; set; }
+
         private string lastAppliedNftId;
 
         public override void Spawned()
@@ -24,7 +27,9 @@ namespace Project.Networking.Fusion
             {
                 var session = WalletSession.Instance ?? WalletSession.FindOrCreate();
                 var skinId = session != null ? session.SelectedNft?.SkinId : null;
+                var mint = session != null ? session.SelectedNft?.Mint : null;
                 SelectedNftId = string.IsNullOrWhiteSpace(skinId) ? string.Empty : skinId;
+                SelectedNftMint = string.IsNullOrWhiteSpace(mint) ? string.Empty : mint;
             }
 
             ApplyAppearance(SelectedNftId.ToString());
@@ -51,6 +56,16 @@ namespace Project.Networking.Fusion
                 targetRenderer.material.color = entry.color;
 
             lastAppliedNftId = skinId;
+        }
+
+
+        public string GetLeaderboardNftKey()
+        {
+            var mint = SelectedNftMint.ToString();
+            if (!string.IsNullOrWhiteSpace(mint))
+                return mint;
+
+            return SelectedNftId.ToString();
         }
 
         public override void Render()

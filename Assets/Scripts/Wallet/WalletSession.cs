@@ -256,28 +256,20 @@ namespace Project.Wallet
             if (Web3.Wallet?.Account?.PublicKey != null)
                 return Web3.Wallet.Account.PublicKey.ToString();
 
-            var tcs = new TaskCompletionSource<string>();
+            var account = await Web3.Instance.LoginWalletAdapter();
+            if (account?.PublicKey != null)
+                return account.PublicKey.ToString();
 
-            void HandleWalletChange()
+            // Some wallet adapters complete approval before Web3.Wallet is fully populated.
+            // Wait briefly for SDK state to propagate so the first connect click succeeds.
+            const int timeoutMs = 7000;
+            var timeoutAt = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            while (Web3.Wallet?.Account?.PublicKey == null && DateTime.UtcNow < timeoutAt)
             {
-                if (Web3.Wallet?.Account?.PublicKey != null)
-                    tcs.TrySetResult(Web3.Wallet.Account.PublicKey.ToString());
+                await UniTask.Delay(100);
             }
 
-            Web3.OnWalletChangeState += HandleWalletChange;
-
-            try
-            {
-                var account = await Web3.Instance.LoginWalletAdapter();
-                if (account?.PublicKey != null)
-                    tcs.TrySetResult(account.PublicKey.ToString());
-
-                return await tcs.Task;
-            }
-            finally
-            {
-                Web3.OnWalletChangeState -= HandleWalletChange;
-            }
+            return Web3.Wallet?.Account?.PublicKey?.ToString();
         }
 
         private bool HasTokenBalance(TokenAccount tokenAccount)

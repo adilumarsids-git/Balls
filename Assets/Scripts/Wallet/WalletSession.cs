@@ -241,7 +241,8 @@ namespace Project.Wallet
 
                 var collectionKey = ResolveCollectionKey(nft);
                 var collectionName = ResolveCollectionName(nft);
-                var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out var skinId);
+                string skinId = null;
+                var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
                 if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
                     continue;
 

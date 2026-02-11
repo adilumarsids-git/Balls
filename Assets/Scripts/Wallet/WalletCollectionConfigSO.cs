@@ -12,11 +12,13 @@ namespace Project.Wallet
         [SerializeField] private List<string> collectionIds = new List<string>();
         [SerializeField] private List<string> collectionSymbols = new List<string>();
         [SerializeField] private bool allowNameKeywordFallbackWhenCollectionMissing = true;
+        [SerializeField] private bool allowCatalogFallbackWhenCollectionMismatch = true;
 
         public bool AllowDefaultSkin => allowDefaultSkin;
         public IReadOnlyList<string> CollectionIds => collectionIds;
         public IReadOnlyList<string> CollectionSymbols => collectionSymbols;
         public bool AllowNameKeywordFallbackWhenCollectionMissing => allowNameKeywordFallbackWhenCollectionMissing;
+        public bool AllowCatalogFallbackWhenCollectionMismatch => allowCatalogFallbackWhenCollectionMismatch;
 
         public bool Matches(string symbol, string collectionKey, string collectionName, bool hasCatalogKeywordMatch)
         {
@@ -51,6 +53,9 @@ namespace Project.Wallet
                                         || !string.IsNullOrWhiteSpace(collectionName);
 
             if (!hasCollectionMetadata && allowNameKeywordFallbackWhenCollectionMissing && hasCatalogKeywordMatch)
+                return true;
+
+            if (hasCollectionMetadata && allowCatalogFallbackWhenCollectionMismatch && hasCatalogKeywordMatch)
                 return true;
 
             return false;

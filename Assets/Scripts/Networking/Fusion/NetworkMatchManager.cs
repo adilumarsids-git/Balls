@@ -1,6 +1,7 @@
 ﻿using Fusion;
 using UnityEngine;
 using System.Collections.Generic;
+using Project.Leaderboard;
 
 namespace Project.Networking.Fusion
 {
@@ -117,7 +118,32 @@ namespace Project.Networking.Fusion
         {
             Debug.Log("Winner: " + winner.name);
 
-            // Later: UI / leaderboard hook
+            if (!Object.HasStateAuthority || winner == null)
+                return;
+
+            var appearance = winner.GetComponent<NetworkPlayerAppearance>();
+            if (appearance == null)
+                return;
+
+            var nftKey = appearance.GetLeaderboardNftKey();
+            if (string.IsNullOrWhiteSpace(nftKey))
+                return;
+
+            string displayName = nftKey;
+            _ = SubmitWinnerAsync(nftKey, displayName);
         }
+        private async System.Threading.Tasks.Task SubmitWinnerAsync(string nftKey, string displayName)
+        {
+            try
+            {
+                var leaderboard = NftLeaderboardService.FindOrCreate();
+                await leaderboard.SubmitWinAsync(nftKey, displayName);
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"Leaderboard submit failed: {ex.Message}");
+            }
+        }
+
     }
 }

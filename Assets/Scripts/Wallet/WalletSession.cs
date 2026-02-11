@@ -25,6 +25,9 @@ namespace Project.Wallet
         [Header("Editor Fallback")]
         [SerializeField] private string editorWalletAddress;
 
+        [Header("Debug")]
+        [SerializeField] private bool enableDebugLogs = true;
+
         private readonly List<NftInfo> ownedNfts = new List<NftInfo>();
         private TaskCompletionSource<string> connectTcs;
         private TaskCompletionSource<List<NftInfo>> fetchTcs;
@@ -76,7 +79,10 @@ namespace Project.Wallet
         public async Task ConnectAsync()
         {
             if (IsConnected)
+            {
+                LogDebug($"ConnectAsync skipped (already connected): {WalletAddress}");
                 return;
+            }
 
             var pendingConnect = connectTcs;
             if (pendingConnect != null)
@@ -93,21 +99,27 @@ namespace Project.Wallet
                 if (Web3.Instance == null)
                     throw new System.InvalidOperationException("Web3 instance not available. Ensure WalletController exists.");
 
+                LogDebug("ConnectAsync started.");
+
                 if (Application.isEditor && !string.IsNullOrWhiteSpace(editorWalletAddress))
                 {
+                    LogDebug($"Using editor fallback wallet address: {editorWalletAddress}");
                     OnWalletConnected(editorWalletAddress);
                 }
                 else
                 {
+                    LogDebug("Opening wallet adapter login...");
                     var publicKey = await LoginWalletAdapterAsync();
                     if (string.IsNullOrWhiteSpace(publicKey))
                         throw new System.Exception("Wallet connection failed.");
 
+                    LogDebug($"Wallet adapter returned public key: {publicKey}");
                     OnWalletConnected(publicKey);
                 }
             }
             catch (System.Exception ex)
             {
+                LogError($"ConnectAsync failed: {ex}");
                 OnWalletError(ex.Message);
             }
 
@@ -125,10 +137,16 @@ namespace Project.Wallet
         public async Task<List<NftInfo>> FetchOwnedNftsAsync()
         {
             if (!IsConnected || string.IsNullOrWhiteSpace(WalletAddress))
+            {
+                LogWarning("FetchOwnedNftsAsync skipped because wallet is not connected.");
                 return new List<NftInfo>();
+            }
 
             if (ownedNfts.Count > 0)
+            {
+                LogDebug($"Returning cached NFTs: {ownedNfts.Count}");
                 return new List<NftInfo>(ownedNfts);
+            }
 
             if (fetchTcs != null)
                 return new List<NftInfo>(await fetchTcs.Task);
@@ -137,6 +155,7 @@ namespace Project.Wallet
 
             try
             {
+                LogDebug($"Fetching owned NFTs for wallet: {WalletAddress}");
                 var nfts = await LoadOwnedNftsAsync();
                 ownedNfts.Clear();
                 ownedNfts.AddRange(nfts);
@@ -145,10 +164,12 @@ namespace Project.Wallet
                     SelectedNft = ownedNfts[0];
 
                 fetchTcs.TrySetResult(new List<NftInfo>(ownedNfts));
+                LogDebug($"FetchOwnedNftsAsync complete. Final count: {ownedNfts.Count}");
                 return new List<NftInfo>(ownedNfts);
             }
             catch (System.Exception ex)
             {
+                LogError($"FetchOwnedNftsAsync failed: {ex}");
                 fetchTcs.TrySetException(ex);
                 throw;
             }
@@ -200,12 +221,15 @@ namespace Project.Wallet
             WalletAddress = address ?? string.Empty;
             WalletProfile.WalletAddress = WalletAddress;
 
+            LogDebug($"Wallet connected. Address: {WalletAddress}");
+
             connectTcs?.TrySetResult(WalletAddress);
         }
 
         public void OnWalletError(string message)
         {
             IsConnected = false;
+            LogError($"Wallet error: {message}");
             connectTcs?.TrySetException(new Exception(message));
         }
 
@@ -217,23 +241,34 @@ namespace Project.Wallet
             var tokenAccounts = await Web3.Wallet.GetTokenAccounts(Commitment.Processed);
             var results = new List<NftInfo>();
 
+            LogDebug($"Token account query returned: {(tokenAccounts == null ? 0 : tokenAccounts.Length)} account(s)");
+
             if (tokenAccounts == null || tokenAccounts.Length == 0)
                 return EnsureDefaultIfNeeded(results);
 
             foreach (var tokenAccount in tokenAccounts)
             {
                 if (!HasTokenBalance(tokenAccount))
+                {
+                    LogDebug("Skipping token account with zero balance.");
                     continue;
+                }
 
                 var mint = tokenAccount.Account.Data.Parsed.Info.Mint;
                 if (!IsMintAllowed(mint))
+                {
+                    LogDebug($"Skipping mint not in allow-list: {mint}");
                     continue;
+                }
 
                 var nft = await Nft.TryGetNftData(mint, Web3.Instance.WalletBase.ActiveRpcClient, commitment: Commitment.Processed)
                     .AsUniTask();
 
                 if (nft == null)
+                {
+                    LogWarning($"NFT metadata fetch returned null for mint: {mint}");
                     continue;
+                }
 
                 var name = nft.metaplexData?.data?.offchainData?.name;
                 var symbol = nft.metaplexData?.data?.offchainData?.symbol;
@@ -244,10 +279,16 @@ namespace Project.Wallet
                 string skinId = null;
                 var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
                 if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
+                {
+                    LogDebug($"Filtered mint {mint}: collection mismatch. name='{name}', symbol='{symbol}', collectionKey='{collectionKey}', collectionName='{collectionName}', catalogMatch={hasCatalogKeywordMatch}");
                     continue;
+                }
 
                 if (!hasCatalogKeywordMatch)
+                {
+                    LogDebug($"Filtered mint {mint}: NFT name '{name}' did not match any BallColorCatalog keyword.");
                     continue;
+                }
 
                 results.Add(new NftInfo
                 {
@@ -256,8 +297,11 @@ namespace Project.Wallet
                     SkinId = skinId,
                     ImageUrl = imageUrl
                 });
+
+                LogDebug($"Accepted NFT mint {mint}: name='{name}', skinId='{skinId}', symbol='{symbol}', collectionKey='{collectionKey}', collectionName='{collectionName}'");
             }
 
+            LogDebug($"LoadOwnedNftsAsync finished. Accepted NFTs before default fallback: {results.Count}");
             return EnsureDefaultIfNeeded(results);
         }
 
@@ -335,9 +379,33 @@ namespace Project.Wallet
 
             var defaultNft = CreateDefaultNft();
             if (defaultNft != null)
+            {
                 results.Add(defaultNft);
+                LogDebug($"No matching NFTs found. Added default fallback skin: {defaultNft.SkinId} ({defaultNft.Name})");
+            }
 
             return results;
+        }
+
+        private void LogDebug(string message)
+        {
+            if (!enableDebugLogs)
+                return;
+
+            Debug.Log($"[WalletSession] {message}");
+        }
+
+        private void LogWarning(string message)
+        {
+            if (!enableDebugLogs)
+                return;
+
+            Debug.LogWarning($"[WalletSession] {message}");
+        }
+
+        private void LogError(string message)
+        {
+            Debug.LogError($"[WalletSession] {message}");
         }
 
         private NftInfo CreateDefaultNft()

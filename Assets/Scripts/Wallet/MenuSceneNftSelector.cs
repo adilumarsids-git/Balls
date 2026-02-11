@@ -13,6 +13,7 @@ namespace Project.Wallet
         [Header("Config")]
         [SerializeField] private int walletSceneBuildIndex = 1;
         [SerializeField] private bool redirectIfDisconnected = true;
+        [SerializeField] private bool enableDebugLogs = true;
 
         [Header("UI")]
         [SerializeField] private TMP_Dropdown nftDropdown;
@@ -92,11 +93,15 @@ namespace Project.Wallet
         private async System.Threading.Tasks.Task InitializeAsync()
         {
             if (walletSession == null)
+            {
+                LogError("WalletSession is null in MenuSceneNftSelector.");
                 return;
+            }
 
             if (!walletSession.IsConnected)
             {
                 UpdateStatus("Please connect your wallet.");
+                LogWarning($"Wallet not connected in menu. redirectIfDisconnected={redirectIfDisconnected}");
 
                 if (redirectIfDisconnected)
                     SceneManager.LoadScene(walletSceneBuildIndex);
@@ -111,11 +116,13 @@ namespace Project.Wallet
                 var nfts = await walletSession.FetchOwnedNftsAsync();
                 availableNfts.Clear();
                 availableNfts.AddRange(nfts);
+                LogDebug($"InitializeAsync fetched NFTs count: {availableNfts.Count}");
                 PopulateDropdown();
             }
             catch (Exception ex)
             {
                 UpdateStatus($"NFT load failed: {ex.Message}");
+                LogError($"NFT load failed: {ex}");
             }
         }
 
@@ -129,6 +136,7 @@ namespace Project.Wallet
             if (availableNfts.Count == 0)
             {
                 UpdateStatus("No NFTs found.");
+                LogWarning("No NFTs found after wallet fetch.");
                 nftDropdown.interactable = false;
                 return;
             }
@@ -156,6 +164,12 @@ namespace Project.Wallet
                 UpdateStatus("No NFTs found. Using default skin.");
             else
                 UpdateStatus($"Loaded {availableNfts.Count} NFTs.");
+
+            for (int i = 0; i < availableNfts.Count; i++)
+            {
+                var nft = availableNfts[i];
+                LogDebug($"Dropdown NFT[{i}] name='{nft.Name}', mint='{nft.Mint}', skinId='{nft.SkinId}'");
+            }
         }
 
         private void OnSelectionChanged(int index)
@@ -164,12 +178,37 @@ namespace Project.Wallet
                 return;
 
             walletSession.SelectNft(availableNfts[index].Mint);
+            var selected = availableNfts[index];
+            LogDebug($"Selected NFT index={index}, name='{selected.Name}', mint='{selected.Mint}', skinId='{selected.SkinId}'");
         }
 
         private void UpdateStatus(string text)
         {
             if (statusText != null)
                 statusText.text = text;
+
+            LogDebug($"Status: {text}");
+        }
+
+        private void LogDebug(string message)
+        {
+            if (!enableDebugLogs)
+                return;
+
+            Debug.Log($"[MenuSceneNftSelector] {message}");
+        }
+
+        private void LogWarning(string message)
+        {
+            if (!enableDebugLogs)
+                return;
+
+            Debug.LogWarning($"[MenuSceneNftSelector] {message}");
+        }
+
+        private void LogError(string message)
+        {
+            Debug.LogError($"[MenuSceneNftSelector] {message}");
         }
 
         private static TMP_Text CreateLabel(Transform parent, string name)

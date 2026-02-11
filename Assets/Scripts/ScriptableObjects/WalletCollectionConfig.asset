@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: WalletCollectionConfig
   m_EditorClassIdentifier: Assembly-CSharp::Project.Wallet.WalletCollectionConfigSO
   allowDefaultSkin: 1
+  allowNameKeywordFallbackWhenCollectionMissing: 1
   collectionIds:
   - Dwy6E8TqvEvSRqKFxaFXFWo7BiY2HFMfjEDHsZHa8WtX
   collectionSymbols: []

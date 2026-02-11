@@ -241,10 +241,11 @@ namespace Project.Wallet
 
                 var collectionKey = ResolveCollectionKey(nft);
                 var collectionName = ResolveCollectionName(nft);
-                if (!IsCollectionMatch(symbol, collectionKey, collectionName))
+                var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out var skinId);
+                if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
                     continue;
 
-                if (colorCatalog == null || !colorCatalog.TryGetSkinIdByName(name, out var skinId))
+                if (!hasCatalogKeywordMatch)
                     continue;
 
                 results.Add(new NftInfo
@@ -315,12 +316,12 @@ namespace Project.Wallet
             return allowedMintAddresses.Contains(mint);
         }
 
-        private bool IsCollectionMatch(string symbol, string collectionKey, string collectionName)
+        private bool IsCollectionMatch(string symbol, string collectionKey, string collectionName, bool hasCatalogKeywordMatch)
         {
             if (collectionConfig == null)
                 return true;
 
-            return collectionConfig.Matches(symbol, collectionKey, collectionName);
+            return collectionConfig.Matches(symbol, collectionKey, collectionName, hasCatalogKeywordMatch);
         }
 
         private List<NftInfo> EnsureDefaultIfNeeded(List<NftInfo> results)

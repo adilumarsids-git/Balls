@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using Solana.Unity.Rpc.Models;
@@ -270,9 +271,9 @@ namespace Project.Wallet
                     continue;
                 }
 
-                var name = nft.metaplexData?.data?.offchainData?.name;
-                var symbol = nft.metaplexData?.data?.offchainData?.symbol;
-                var imageUrl = nft.metaplexData?.data?.offchainData?.default_image;
+                var name = ResolveNftName(nft, mint);
+                var symbol = ResolveNftSymbol(nft);
+                var imageUrl = ResolveNftImageUrl(nft);
 
                 var collectionKey = ResolveCollectionKey(nft);
                 var collectionName = ResolveCollectionName(nft);
@@ -435,7 +436,13 @@ namespace Project.Wallet
 
             var onchainData = GetPropertyValue(data, "onchainData");
             var collection = GetPropertyValue(onchainData, "collection");
-            return GetPropertyValue(collection, "key")?.ToString();
+            var key = GetPropertyValue(collection, "key")?.ToString();
+            if (!string.IsNullOrWhiteSpace(key))
+                return key;
+
+            var offchain = GetPropertyValue(data, "offchainData");
+            var offchainCollection = GetPropertyValue(offchain, "collection");
+            return GetPropertyValue(offchainCollection, "key")?.ToString();
         }
 
         private static string ResolveCollectionName(object nft)
@@ -451,12 +458,70 @@ namespace Project.Wallet
             return GetPropertyValue(collection, "family")?.ToString();
         }
 
+        private static string ResolveNftName(object nft, string mintFallback)
+        {
+            var metaplexData = GetPropertyValue(nft, "metaplexData");
+            var data = GetPropertyValue(metaplexData, "data");
+
+            var offchain = GetPropertyValue(data, "offchainData");
+            var offchainName = GetPropertyValue(offchain, "name")?.ToString();
+            if (!string.IsNullOrWhiteSpace(offchainName))
+                return offchainName;
+
+            var onchainData = GetPropertyValue(data, "onchainData");
+            var onchainName = GetPropertyValue(onchainData, "name")?.ToString();
+            if (!string.IsNullOrWhiteSpace(onchainName))
+                return onchainName;
+
+            var dataName = GetPropertyValue(data, "name")?.ToString();
+            if (!string.IsNullOrWhiteSpace(dataName))
+                return dataName;
+
+            return mintFallback ?? string.Empty;
+        }
+
+        private static string ResolveNftSymbol(object nft)
+        {
+            var metaplexData = GetPropertyValue(nft, "metaplexData");
+            var data = GetPropertyValue(metaplexData, "data");
+
+            var offchain = GetPropertyValue(data, "offchainData");
+            var offchainSymbol = GetPropertyValue(offchain, "symbol")?.ToString();
+            if (!string.IsNullOrWhiteSpace(offchainSymbol))
+                return offchainSymbol;
+
+            var onchainData = GetPropertyValue(data, "onchainData");
+            var onchainSymbol = GetPropertyValue(onchainData, "symbol")?.ToString();
+            if (!string.IsNullOrWhiteSpace(onchainSymbol))
+                return onchainSymbol;
+
+            return GetPropertyValue(data, "symbol")?.ToString();
+        }
+
+        private static string ResolveNftImageUrl(object nft)
+        {
+            var metaplexData = GetPropertyValue(nft, "metaplexData");
+            var data = GetPropertyValue(metaplexData, "data");
+
+            var offchain = GetPropertyValue(data, "offchainData");
+            var defaultImage = GetPropertyValue(offchain, "default_image")?.ToString();
+            if (!string.IsNullOrWhiteSpace(defaultImage))
+                return defaultImage;
+
+            var image = GetPropertyValue(offchain, "image")?.ToString();
+            if (!string.IsNullOrWhiteSpace(image))
+                return image;
+
+            return null;
+        }
+
         private static object GetPropertyValue(object target, string propertyName)
         {
             if (target == null || string.IsNullOrWhiteSpace(propertyName))
                 return null;
 
-            var prop = target.GetType().GetProperty(propertyName);
+            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase;
+            var prop = target.GetType().GetProperty(propertyName, flags);
             return prop != null ? prop.GetValue(target) : null;
         }
     }

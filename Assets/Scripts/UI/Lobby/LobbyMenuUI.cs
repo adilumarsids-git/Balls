@@ -5,6 +5,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Project.Networking.Fusion;
+using Project.Wallet;
 
 namespace Project.UI.Lobby
 {
@@ -68,6 +69,7 @@ namespace Project.UI.Lobby
         private async Task Host()
         {
             Project.Core.LocalProfile.SetName(nameInput.text);
+            EnsureSelectedNft();
             string room = roomNameInput.text.Trim();
             int mapIndex = (mapDropdown != null && mapDropdown.value == 1)
                 ? mapBBuildIndex
@@ -81,7 +83,15 @@ namespace Project.UI.Lobby
             string room = roomNameInput.text.Trim();
             if (string.IsNullOrEmpty(room)) return;
 
+            EnsureSelectedNft();
             await launcher.Join(room);
+        }
+
+        private void EnsureSelectedNft()
+        {
+            var session = WalletSession.Instance ?? WalletSession.FindOrCreate();
+            if (session != null && !session.EnsureSelectedNft())
+                Debug.LogWarning("No NFT selected for this wallet session.");
         }
 
         private void OnSessionListChanged(IReadOnlyList<SessionInfo> sessions)
@@ -95,6 +105,7 @@ namespace Project.UI.Lobby
             foreach (var s in sessions)
             {
                 if (!s.IsVisible || !s.IsOpen) continue;
+                if (s.PlayerCount >= s.MaxPlayers) continue;
 
                 var item = Instantiate(listItemPrefab, listParent);
                 item.Bind(s, launcher);

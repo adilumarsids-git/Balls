@@ -11,17 +11,20 @@ namespace Project.Networking.Fusion
     {
         [SerializeField] private TopDownMovementConfigSO moveConfig;
         [SerializeField] private GameConfigSO gameConfig;
+
+        [Header("Bump")]
+        [SerializeField] private float minBumpImpactSpeed = 1.25f;
+        [SerializeField] private float bumpExaggeration = 1.35f;
+        [SerializeField] private float bumpDamping = 0.95f;
+        [SerializeField] private float postBumpNoBrakeSeconds = 0.2f;
+
         [Networked] private NetworkBool AuthorityRequested { get; set; }
 
         private NetworkRigidbody3D nrb;
         private Rigidbody rb;
         private PlayerStats stats;
+        private float noBrakeTimer;
 
-        // Burst timers (networked)
-        [Networked] private TickTimer BoostActive { get; set; }
-        [Networked] private TickTimer BoostCooldown { get; set; }
-
-        // Remember last direction for boost when input is tiny
         [Networked] private Vector2 LastMoveDir { get; set; }
         [Networked] public NetworkString<_16> PlayerName { get; private set; }
         [Networked] private float SpeedMul { get; set; } = 1f;
@@ -37,23 +40,16 @@ namespace Project.Networking.Fusion
             rb.useGravity = true;
             if (LastMoveDir == Vector2.zero)
                 LastMoveDir = Vector2.up;
-            if (Object.HasStateAuthority && PlayerName.ToString().Length == 0)
-            {
-                SetPlayerName($"P{Object.InputAuthority.RawEncoded}");
-            }
 
-            // ✅ Critical: in Shared mode, clients must request StateAuthority for their own physics object
+            if (Object.HasStateAuthority && PlayerName.ToString().Length == 0)
+                SetPlayerName($"P{Object.InputAuthority.RawEncoded}");
+
             if (Object.HasInputAuthority && !Object.HasStateAuthority && !AuthorityRequested)
             {
                 AuthorityRequested = true;
                 Object.RequestStateAuthority();
             }
-
-            // Optional debug (remove later)
-            Debug.Log($"Spawned {name} Local={Runner.LocalPlayer} InputAuth={Object.InputAuthority} HasInputAuth={Object.HasInputAuthority} HasStateAuth={Object.HasStateAuthority}");
-
         }
-
 
         public override void FixedUpdateNetwork()
         {
@@ -65,66 +61,91 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            if (moveConfig == null || gameConfig == null) return;
-
-            // Only the peer with StateAuthority should drive physics for this object.
-            // In Shared Mode we will assign StateAuthority = InputAuthority for each player object.
-            if (!Object.HasStateAuthority) return;
+            if (moveConfig == null || gameConfig == null || !Object.HasStateAuthority)
+                return;
 
             if (!GetInput(out NetInput input))
                 input = default;
+
+            if (noBrakeTimer > 0f)
+                noBrakeTimer = Mathf.Max(0f, noBrakeTimer - Runner.DeltaTime);
 
             Vector2 move = input.Move;
             if (move.sqrMagnitude > 0.0001f)
                 LastMoveDir = move;
 
             float speedBonus = stats != null ? stats.SpeedBonus : 0f;
+            float boostMultiplier = input.Boost ? gameConfig.boostMultiplier : 1f;
 
-            bool boostingNow = BoostActive.IsRunning;
-            float multiplier = boostingNow ? gameConfig.boostMultiplier : 1f;
+            float baseSpeed = (moveConfig.baseSpeed + speedBonus) * SpeedMul;
+            float targetSpeed = baseSpeed * boostMultiplier;
+            float targetMax = (moveConfig.maxSpeed + speedBonus) * SpeedMul * boostMultiplier;
+            float accel = moveConfig.acceleration * SpeedMul * boostMultiplier;
 
-            float targetMax = (moveConfig.maxSpeed + speedBonus) * SpeedMul;
-            float accel = moveConfig.acceleration * SpeedMul;
+            Vector2 planarVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            Vector2 desired = move * targetSpeed;
+            Vector2 delta = desired - planarVelocity;
 
-            // Current velocity XZ
-            Vector2 v = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
-
-            // Desired velocity XZ
-            Vector2 desired = move * (moveConfig.baseSpeed + SpeedMul);
-            Vector2 delta = desired - v;
-
-            // Accelerate
             Vector2 force = Vector2.ClampMagnitude(delta * accel, accel);
             rb.AddForce(new Vector3(force.x, 0f, force.y), ForceMode.Acceleration);
 
-            // Stop damping
-            if (move.sqrMagnitude < 0.0001f)
+            if (move.sqrMagnitude < 0.0001f && noBrakeTimer <= 0f)
             {
-                Vector2 damp = -v * moveConfig.stopDamping;
+                Vector2 damp = -planarVelocity * moveConfig.stopDamping;
                 rb.AddForce(new Vector3(damp.x, 0f, damp.y), ForceMode.Acceleration);
             }
 
-            // Clamp XZ speed
-            Vector2 v2 = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
-            if (v2.magnitude > targetMax)
+            Vector2 clamped = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            if (clamped.magnitude > targetMax)
             {
-                v2 = v2.normalized * targetMax;
-                rb.linearVelocity = new Vector3(v2.x, rb.linearVelocity.y, v2.y);
+                clamped = clamped.normalized * targetMax;
+                rb.linearVelocity = new Vector3(clamped.x, rb.linearVelocity.y, clamped.y);
             }
+        }
 
-            // Handle press-to-burst boost
-            if (input.Boost && !BoostCooldown.IsRunning)
-            {
-                Vector2 dir = move.sqrMagnitude > 0.0001f ? move : LastMoveDir;
-                if (dir.sqrMagnitude > 0.0001f)
-                {
-                    // impulse
-                    rb.AddForce(new Vector3(dir.x, 0f, dir.y) * 6.5f, ForceMode.VelocityChange);
+        private void OnCollisionEnter(Collision collision)
+        {
+            if (!Object.HasStateAuthority || rb == null)
+                return;
 
-                    BoostActive = TickTimer.CreateFromSeconds(Runner, gameConfig.boostBurstDuration);
-                    BoostCooldown = TickTimer.CreateFromSeconds(Runner, gameConfig.boostCooldown);
-                }
-            }
+            if (collision.rigidbody == null)
+                return;
+
+            if (collision.gameObject.GetComponentInParent<Project.Gameplay.Player.PlayerTag>() == null)
+                return;
+
+            if (collision.contactCount == 0)
+                return;
+
+            Vector3 contactNormal = collision.contacts[0].normal;
+            Vector2 away = new Vector2(contactNormal.x, contactNormal.z);
+            if (away.sqrMagnitude < 0.0001f)
+                return;
+
+            away.Normalize();
+
+            Vector2 myV = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            Vector2 otherV = new Vector2(collision.rigidbody.linearVelocity.x, collision.rigidbody.linearVelocity.z);
+
+            float relImpact = Mathf.Abs(Vector2.Dot(myV - otherV, away));
+            if (relImpact < minBumpImpactSpeed)
+                return;
+
+            float myMass = Mathf.Max(0.1f, rb.mass);
+            float otherMass = Mathf.Max(0.1f, collision.rigidbody.mass);
+
+            // Robust symmetric shove: each peer applies equal/opposite-style delta-v
+            // to its own authoritative body based on relative impact and reduced mass.
+            float reducedMass = (myMass * otherMass) / (myMass + otherMass);
+            float impulse = relImpact * reducedMass * bumpExaggeration;
+            float deltaSpeed = impulse / myMass;
+
+            Vector2 newMyPlanar = myV + away * deltaSpeed;
+            newMyPlanar *= bumpDamping;
+
+            rb.linearVelocity = new Vector3(newMyPlanar.x, rb.linearVelocity.y, newMyPlanar.y);
+            noBrakeTimer = Mathf.Max(noBrakeTimer, postBumpNoBrakeSeconds);
+            rb.WakeUp();
         }
 
         public void SetPlayerName(string name)
@@ -134,30 +155,25 @@ namespace Project.Networking.Fusion
             if (string.IsNullOrWhiteSpace(name))
                 name = $"P{Object.InputAuthority.RawEncoded}";
 
-            // Trim to be safe
             name = name.Trim();
             if (name.Length > 16) name = name.Substring(0, 16);
 
             PlayerName = name;
-            gameObject.name = name; // helps editor/hierarchy debugging
+            gameObject.name = name;
         }
 
         public void OnConsumablePickup(float sizeMul, float speedMul, float massMul)
         {
-            // Only StateAuthority should change physics-affecting values
             if (!Object.HasStateAuthority) return;
 
             SizeMul *= sizeMul;
-            SpeedMul = Mathf.Clamp(SpeedMul * speedMul, 0.5f, 3f);
+            SpeedMul = Mathf.Clamp(SpeedMul * speedMul, 0.5f, 4f);
             MassMul *= massMul;
 
-            // Apply locally (StateAuthority simulates)
             transform.localScale *= sizeMul;
 
             if (rb != null)
                 rb.mass *= massMul;
         }
-
-
     }
 }

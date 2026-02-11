@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
@@ -28,6 +29,10 @@ namespace Project.Wallet
 
         [Header("Debug")]
         [SerializeField] private bool enableDebugLogs = true;
+
+        [Header("RPC Network")]
+        [SerializeField] private bool autoSwitchDevnetToMainnet = true;
+        [SerializeField] private string mainnetRpcUrl = "https://api.mainnet-beta.solana.com";
 
         private readonly List<NftInfo> ownedNfts = new List<NftInfo>();
         private TaskCompletionSource<string> connectTcs;
@@ -101,6 +106,7 @@ namespace Project.Wallet
                     throw new System.InvalidOperationException("Web3 instance not available. Ensure WalletController exists.");
 
                 LogDebug("ConnectAsync started.");
+                EnsureRpcNetworkForNfts();
 
                 if (Application.isEditor && !string.IsNullOrWhiteSpace(editorWalletAddress))
                 {
@@ -239,10 +245,25 @@ namespace Project.Wallet
             if (Web3.Wallet == null)
                 throw new System.InvalidOperationException("Wallet not initialized.");
 
+            EnsureRpcNetworkForNfts();
+            var endpointBeforeQuery = GetCurrentRpcEndpoint();
             var tokenAccounts = await Web3.Wallet.GetTokenAccounts(Commitment.Processed);
             var results = new List<NftInfo>();
 
-            LogDebug($"Token account query returned: {(tokenAccounts == null ? 0 : tokenAccounts.Length)} account(s)");
+            LogDebug($"Token account query returned: {(tokenAccounts == null ? 0 : tokenAccounts.Length)} account(s). endpoint='{endpointBeforeQuery}'");
+
+            if ((tokenAccounts == null || tokenAccounts.Length == 0)
+                && endpointBeforeQuery.Contains("devnet", StringComparison.OrdinalIgnoreCase)
+                && autoSwitchDevnetToMainnet)
+            {
+                LogWarning("Token accounts are empty on Devnet endpoint. Retrying after mainnet switch attempt...");
+                if (TrySwitchRpcToMainnet())
+                {
+                    var endpointAfterSwitch = GetCurrentRpcEndpoint();
+                    tokenAccounts = await Web3.Wallet.GetTokenAccounts(Commitment.Processed);
+                    LogDebug($"Retry token account query returned: {(tokenAccounts == null ? 0 : tokenAccounts.Length)} account(s). endpoint='{endpointAfterSwitch}'");
+                }
+            }
 
             if (tokenAccounts == null || tokenAccounts.Length == 0)
                 return EnsureDefaultIfNeeded(results);
@@ -523,6 +544,165 @@ namespace Project.Wallet
             var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase;
             var prop = target.GetType().GetProperty(propertyName, flags);
             return prop != null ? prop.GetValue(target) : null;
+        }
+
+        private void EnsureRpcNetworkForNfts()
+        {
+            var endpoint = GetCurrentRpcEndpoint();
+            if (string.IsNullOrWhiteSpace(endpoint))
+                return;
+
+            if (!endpoint.Contains("devnet", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            LogWarning($"Current RPC endpoint appears to be Devnet: {endpoint}");
+
+            if (!autoSwitchDevnetToMainnet)
+            {
+                LogWarning("autoSwitchDevnetToMainnet is disabled. Set WalletController/Web3 network to Mainnet to fetch your NFTs.");
+                return;
+            }
+
+            var switched = TrySwitchRpcToMainnet();
+            if (switched)
+            {
+                var after = GetCurrentRpcEndpoint();
+                LogDebug($"Attempted RPC switch to mainnet. Current endpoint: {after}");
+            }
+            else
+            {
+                LogWarning("Unable to auto-switch RPC via SDK reflection. Please set WalletController network to Mainnet manually.");
+            }
+        }
+
+        private string GetCurrentRpcEndpoint()
+        {
+            try
+            {
+                var client = Web3.Instance?.WalletBase?.ActiveRpcClient;
+                if (client == null)
+                    return string.Empty;
+
+                var candidates = new[] { "NodeAddress", "RpcNode", "NodeUri", "Url" };
+                foreach (var name in candidates)
+                {
+                    var value = GetPropertyValue(client, name)?.ToString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                        return value;
+                }
+
+                var methods = client.GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .Where(m => m.GetParameters().Length == 0 &&
+                                (m.Name.Contains("Address", StringComparison.OrdinalIgnoreCase) ||
+                                 m.Name.Contains("Endpoint", StringComparison.OrdinalIgnoreCase) ||
+                                 m.Name.Contains("Uri", StringComparison.OrdinalIgnoreCase)))
+                    .ToArray();
+
+                foreach (var method in methods)
+                {
+                    var value = method.Invoke(client, null)?.ToString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                        return value;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Failed to read current RPC endpoint: {ex.Message}");
+            }
+
+            return string.Empty;
+        }
+
+        private bool TrySwitchRpcToMainnet()
+        {
+            try
+            {
+                var web3 = Web3.Instance;
+                if (web3 == null)
+                    return false;
+
+                if (TryInvokeNetworkMethod(web3, "SetRpcEndpoint", mainnetRpcUrl)) return true;
+                if (TryInvokeNetworkMethod(web3, "SetRpcUrl", mainnetRpcUrl)) return true;
+                if (TryInvokeNetworkMethod(web3, "SetRpcClient", mainnetRpcUrl)) return true;
+                if (TryInvokeNetworkMethod(web3, "SetCluster", "mainnet-beta")) return true;
+                if (TryInvokeNetworkMethod(web3, "SetNetwork", "mainnet-beta")) return true;
+                if (TryInvokeNetworkMethod(web3, "ChangeRpc", mainnetRpcUrl)) return true;
+
+                var walletBase = web3.WalletBase;
+                if (walletBase != null)
+                {
+                    if (TryInvokeNetworkMethod(walletBase, "SetRpcEndpoint", mainnetRpcUrl)) return true;
+                    if (TryInvokeNetworkMethod(walletBase, "SetRpcUrl", mainnetRpcUrl)) return true;
+                    if (TryInvokeNetworkMethod(walletBase, "SetRpcClient", mainnetRpcUrl)) return true;
+                    if (TryInvokeNetworkMethod(walletBase, "SetCluster", "mainnet-beta")) return true;
+                    if (TryInvokeNetworkMethod(walletBase, "SetNetwork", "mainnet-beta")) return true;
+                    if (TryInvokeNetworkMethod(walletBase, "ChangeRpc", mainnetRpcUrl)) return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"TrySwitchRpcToMainnet error: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        private bool TryInvokeNetworkMethod(object target, string methodName, string argument)
+        {
+            if (target == null)
+                return false;
+
+            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            var methods = target.GetType().GetMethods(flags)
+                .Where(m => string.Equals(m.Name, methodName, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            foreach (var method in methods)
+            {
+                var parameters = method.GetParameters();
+                if (parameters.Length != 1)
+                    continue;
+
+                var parameterType = parameters[0].ParameterType;
+
+                try
+                {
+                    if (parameterType == typeof(string))
+                    {
+                        method.Invoke(target, new object[] { argument });
+                        return true;
+                    }
+
+                    if (parameterType.IsEnum)
+                    {
+                        object enumValue;
+                        try
+                        {
+                            enumValue = Enum.Parse(parameterType, "MainNet", true);
+                        }
+                        catch
+                        {
+                            try
+                            {
+                                enumValue = Enum.Parse(parameterType, "Mainnet", true);
+                            }
+                            catch
+                            {
+                                enumValue = Enum.GetValues(parameterType).GetValue(0);
+                            }
+                        }
+
+                        method.Invoke(target, new[] { enumValue });
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // try the next overload
+                }
+            }
+
+            return false;
         }
     }
 }

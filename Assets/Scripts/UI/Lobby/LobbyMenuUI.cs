@@ -105,6 +105,7 @@ namespace Project.UI.Lobby
             foreach (var s in sessions)
             {
                 if (!s.IsVisible || !s.IsOpen) continue;
+                if (s.PlayerCount >= s.MaxPlayers) continue;
 
                 var item = Instantiate(listItemPrefab, listParent);
                 item.Bind(s, launcher);

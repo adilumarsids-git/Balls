@@ -94,22 +94,38 @@ namespace Project.Utils
             private IDictionary<string, object> ParseObject()
             {
                 var table = new Dictionary<string, object>();
-                NextChar();
+                NextChar(); // {
+
                 while (true)
                 {
                     EatWhitespace();
                     char c = PeekChar();
                     if (c == '\0')
                         return null;
+
                     if (c == '}')
                     {
                         NextChar();
                         return table;
                     }
 
+                    if (c == ',')
+                    {
+                        NextChar();
+                        continue;
+                    }
+
+                    if (c != '"')
+                        return null;
+
                     string key = ParseString();
+                    if (key == null)
+                        return null;
+
                     EatWhitespace();
-                    NextChar();
+                    if (NextChar() != ':')
+                        return null;
+
                     object value = ParseValue();
                     table[key] = value;
                 }
@@ -118,17 +134,25 @@ namespace Project.Utils
             private IList ParseArray()
             {
                 var array = new List<object>();
-                NextChar();
+                NextChar(); // [
+
                 while (true)
                 {
                     EatWhitespace();
                     char c = PeekChar();
                     if (c == '\0')
                         return null;
+
                     if (c == ']')
                     {
                         NextChar();
                         return array;
+                    }
+
+                    if (c == ',')
+                    {
+                        NextChar();
+                        continue;
                     }
 
                     object value = ParseValue();

@@ -122,7 +122,7 @@ namespace Project.Networking.Fusion
             Vector2 myV = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
             Vector2 otherV = new Vector2(collision.rigidbody.linearVelocity.x, collision.rigidbody.linearVelocity.z);
 
-            float relImpact = Vector2.Dot(myV - otherV, away);
+            float relImpact = Mathf.Abs(Vector2.Dot(myV - otherV, away));
             if (relImpact < minBumpImpactSpeed)
                 return;
 
@@ -133,31 +133,12 @@ namespace Project.Networking.Fusion
             float u2 = Vector2.Dot(otherV, away);
 
             float v1 = ((myMass - otherMass) * u1 + (2f * otherMass * u2)) / (myMass + otherMass);
-            float v2 = ((otherMass - myMass) * u2 + (2f * myMass * u1)) / (myMass + otherMass);
 
             Vector2 myTangential = myV - away * u1;
-            Vector2 otherTangential = otherV - away * u2;
-
             Vector2 newMyPlanar = (myTangential + away * (v1 * bumpExaggeration)) * bumpDamping;
-            Vector2 newOtherPlanar = (otherTangential + away * (v2 * bumpExaggeration)) * bumpDamping;
 
             rb.linearVelocity = new Vector3(newMyPlanar.x, rb.linearVelocity.y, newMyPlanar.y);
-
-            var otherController = collision.rigidbody.GetComponent<NetworkPlayerController>();
-            if (otherController == null)
-                otherController = collision.rigidbody.GetComponentInParent<NetworkPlayerController>();
-
-            if (otherController != null)
-                otherController.RPC_ApplyBumpPlanarVelocity(newOtherPlanar);
-        }
-
-        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-        private void RPC_ApplyBumpPlanarVelocity(Vector2 planarVelocity)
-        {
-            if (rb == null)
-                return;
-
-            rb.linearVelocity = new Vector3(planarVelocity.x, rb.linearVelocity.y, planarVelocity.y);
+            rb.WakeUp();
         }
 
         public void SetPlayerName(string name)

@@ -16,12 +16,14 @@ namespace Project.Networking.Fusion
         [SerializeField] private float minBumpImpactSpeed = 1.25f;
         [SerializeField] private float bumpExaggeration = 1.35f;
         [SerializeField] private float bumpDamping = 0.95f;
+        [SerializeField] private float postBumpNoBrakeSeconds = 0.2f;
 
         [Networked] private NetworkBool AuthorityRequested { get; set; }
 
         private NetworkRigidbody3D nrb;
         private Rigidbody rb;
         private PlayerStats stats;
+        private float noBrakeTimer;
 
         [Networked] private Vector2 LastMoveDir { get; set; }
         [Networked] public NetworkString<_16> PlayerName { get; private set; }
@@ -65,6 +67,9 @@ namespace Project.Networking.Fusion
             if (!GetInput(out NetInput input))
                 input = default;
 
+            if (noBrakeTimer > 0f)
+                noBrakeTimer = Mathf.Max(0f, noBrakeTimer - Runner.DeltaTime);
+
             Vector2 move = input.Move;
             if (move.sqrMagnitude > 0.0001f)
                 LastMoveDir = move;
@@ -84,7 +89,7 @@ namespace Project.Networking.Fusion
             Vector2 force = Vector2.ClampMagnitude(delta * accel, accel);
             rb.AddForce(new Vector3(force.x, 0f, force.y), ForceMode.Acceleration);
 
-            if (move.sqrMagnitude < 0.0001f)
+            if (move.sqrMagnitude < 0.0001f && noBrakeTimer <= 0f)
             {
                 Vector2 damp = -planarVelocity * moveConfig.stopDamping;
                 rb.AddForce(new Vector3(damp.x, 0f, damp.y), ForceMode.Acceleration);
@@ -139,6 +144,7 @@ namespace Project.Networking.Fusion
             newMyPlanar *= bumpDamping;
 
             rb.linearVelocity = new Vector3(newMyPlanar.x, rb.linearVelocity.y, newMyPlanar.y);
+            noBrakeTimer = Mathf.Max(noBrakeTimer, postBumpNoBrakeSeconds);
             rb.WakeUp();
         }
 

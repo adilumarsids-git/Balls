@@ -129,13 +129,14 @@ namespace Project.Networking.Fusion
             float myMass = Mathf.Max(0.1f, rb.mass);
             float otherMass = Mathf.Max(0.1f, collision.rigidbody.mass);
 
-            float u1 = Vector2.Dot(myV, away);
-            float u2 = Vector2.Dot(otherV, away);
+            // Robust symmetric shove: each peer applies equal/opposite-style delta-v
+            // to its own authoritative body based on relative impact and reduced mass.
+            float reducedMass = (myMass * otherMass) / (myMass + otherMass);
+            float impulse = relImpact * reducedMass * bumpExaggeration;
+            float deltaSpeed = impulse / myMass;
 
-            float v1 = ((myMass - otherMass) * u1 + (2f * otherMass * u2)) / (myMass + otherMass);
-
-            Vector2 myTangential = myV - away * u1;
-            Vector2 newMyPlanar = (myTangential + away * (v1 * bumpExaggeration)) * bumpDamping;
+            Vector2 newMyPlanar = myV + away * deltaSpeed;
+            newMyPlanar *= bumpDamping;
 
             rb.linearVelocity = new Vector3(newMyPlanar.x, rb.linearVelocity.y, newMyPlanar.y);
             rb.WakeUp();

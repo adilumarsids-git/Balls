@@ -592,7 +592,7 @@ namespace Project.Wallet
                 return;
 
             if (!hasCatalogKeywordMatch)
-                skinId = ResolveFallbackSkinId();
+                return;
 
             if (output.Exists(x => !string.IsNullOrWhiteSpace(x.Mint) && string.Equals(x.Mint, mint, StringComparison.OrdinalIgnoreCase)))
                 return;
@@ -700,7 +700,7 @@ namespace Project.Wallet
                     if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
                         continue;
                     if (!hasCatalogKeywordMatch)
-                        skinId = ResolveFallbackSkinId();
+                        continue;
 
                     output.Add(new NftInfo
                     {
@@ -739,23 +739,27 @@ namespace Project.Wallet
             if (string.IsNullOrWhiteSpace(normalized))
                 return false;
 
-            if (TryResolveSkinIdByColorToken("red", normalized, out skinId)) return true;
-            if (TryResolveSkinIdByColorToken("blue", normalized, out skinId)) return true;
-            if (TryResolveSkinIdByColorToken("green", normalized, out skinId)) return true;
-            if (TryResolveSkinIdByColorToken("yellow", normalized, out skinId)) return true;
-            if (TryResolveSkinIdByColorToken("purple", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("red", "RedBall", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("blue", "BlueBall", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("green", "GreenBall", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("yellow", "YellowBall", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("purple", "PurpleBall", normalized, out skinId)) return true;
 
             return false;
         }
 
-        private bool TryResolveSkinIdByColorToken(string token, string normalizedNftName, out string skinId)
+        private bool TryResolveSkinIdByColorToken(string token, string fallbackSkinId, string normalizedNftName, out string skinId)
         {
             skinId = null;
-            if (colorCatalog == null || colorCatalog.Colors == null)
-                return false;
 
             if (!normalizedNftName.Contains(token, StringComparison.OrdinalIgnoreCase))
                 return false;
+
+            if (colorCatalog == null || colorCatalog.Colors == null)
+            {
+                skinId = fallbackSkinId;
+                return true;
+            }
 
             foreach (var entry in colorCatalog.Colors)
             {
@@ -785,7 +789,8 @@ namespace Project.Wallet
                 }
             }
 
-            return false;
+            skinId = fallbackSkinId;
+            return true;
         }
 
         private static string NormalizeName(string value)

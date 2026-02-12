@@ -71,28 +71,46 @@ namespace Project.Networking.Fusion
                 noBrakeTimer = Mathf.Max(0f, noBrakeTimer - Runner.DeltaTime);
 
             Vector2 move = input.Move;
-            if (move.sqrMagnitude > 0.0001f)
-                LastMoveDir = move;
+            bool hasMoveInput = move.sqrMagnitude > 0.0001f;
+            Vector2 inputDir = hasMoveInput ? move.normalized : LastMoveDir;
+            if (hasMoveInput)
+                LastMoveDir = inputDir;
 
             float speedBonus = stats != null ? stats.SpeedBonus : 0f;
             float boostMultiplier = input.Boost ? gameConfig.boostMultiplier : 1f;
 
-            float baseSpeed = (moveConfig.baseSpeed + speedBonus) * SpeedMul;
-            float targetSpeed = baseSpeed * boostMultiplier;
+            float targetSpeed = (moveConfig.baseSpeed + speedBonus) * SpeedMul * boostMultiplier;
             float targetMax = (moveConfig.maxSpeed + speedBonus) * SpeedMul * boostMultiplier;
-            float accel = moveConfig.acceleration * SpeedMul * boostMultiplier;
+            float accel = moveConfig.acceleration * SpeedMul;
 
             Vector2 planarVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
-            Vector2 desired = move * targetSpeed;
-            Vector2 delta = desired - planarVelocity;
+            float planarSpeed = planarVelocity.magnitude;
 
-            Vector2 force = Vector2.ClampMagnitude(delta * accel, accel);
-            rb.AddForce(new Vector3(force.x, 0f, force.y), ForceMode.Acceleration);
+            // Realistic movement feel: keep some inertia, add traction and lateral friction instead of hard snaps.
+            Vector2 desiredVelocity = hasMoveInput ? inputDir * targetSpeed : Vector2.zero;
+            Vector2 velocityDelta = desiredVelocity - planarVelocity;
 
-            if (move.sqrMagnitude < 0.0001f && noBrakeTimer <= 0f)
+            // Acceleration scales down as we approach max speed to avoid sudden speed jumps.
+            float speedRatio = targetMax > 0.0001f ? Mathf.Clamp01(planarSpeed / targetMax) : 0f;
+            float accelScale = Mathf.Lerp(1f, 0.35f, speedRatio);
+            Vector2 accelForce = Vector2.ClampMagnitude(velocityDelta * accel * accelScale, accel);
+            rb.AddForce(new Vector3(accelForce.x, 0f, accelForce.y), ForceMode.Acceleration);
+
+            // Lateral friction: preserves momentum but suppresses unnatural side-sliding.
+            Vector2 heading = planarSpeed > 0.001f ? planarVelocity.normalized : inputDir;
+            Vector2 forwardVel = heading * Vector2.Dot(planarVelocity, heading);
+            Vector2 lateralVel = planarVelocity - forwardVel;
+            float lateralGrip = hasMoveInput ? moveConfig.linearDrag : moveConfig.linearDrag * 1.5f;
+            Vector2 lateralFriction = -lateralVel * lateralGrip;
+            rb.AddForce(new Vector3(lateralFriction.x, 0f, lateralFriction.y), ForceMode.Acceleration);
+
+            // When input is released, blend drag + stop damping for a smooth roll-down.
+            if (!hasMoveInput && noBrakeTimer <= 0f)
             {
-                Vector2 damp = -planarVelocity * moveConfig.stopDamping;
-                rb.AddForce(new Vector3(damp.x, 0f, damp.y), ForceMode.Acceleration);
+                Vector2 drag = -planarVelocity * moveConfig.linearDrag;
+                Vector2 brake = -planarVelocity * moveConfig.stopDamping;
+                Vector2 stopForce = drag + brake;
+                rb.AddForce(new Vector3(stopForce.x, 0f, stopForce.y), ForceMode.Acceleration);
             }
 
             Vector2 clamped = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);

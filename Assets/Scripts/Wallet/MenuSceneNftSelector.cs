@@ -18,6 +18,10 @@ namespace Project.Wallet
         [Header("UI")]
         [SerializeField] private TMP_Dropdown nftDropdown;
         [SerializeField] private TMP_Text statusText;
+        [SerializeField] private GameObject nftGatePanel;
+        [SerializeField] private TMP_Text nftGateMessageText;
+        [SerializeField] private Button buyNftsButton;
+        [SerializeField] private string buyNftsUrl = "https://magiceden.io/marketplace/Dwy6E8TqvEvSRqKFxaFXFWo7BiY2HFMfjEDHsZHa8WtX";
 
         private readonly List<NftInfo> availableNfts = new List<NftInfo>();
         private WalletSession walletSession;
@@ -27,6 +31,14 @@ namespace Project.Wallet
             walletSession = WalletSession.FindOrCreate();
             EnsureEventSystem();
             FindUiIfMissing();
+
+            if (buyNftsButton != null)
+            {
+                buyNftsButton.onClick.RemoveListener(OpenBuyNftsUrl);
+                buyNftsButton.onClick.AddListener(OpenBuyNftsUrl);
+            }
+
+            SetGatePanelState(true, "Loading and checking for NFTs...", false);
         }
 
         protected virtual async void Start()
@@ -95,12 +107,14 @@ namespace Project.Wallet
             if (walletSession == null)
             {
                 LogError("WalletSession is null in MenuSceneNftSelector.");
+                SetGatePanelState(true, "Wallet session unavailable.", false);
                 return;
             }
 
             if (!walletSession.IsConnected)
             {
                 UpdateStatus("Please connect your wallet.");
+                SetGatePanelState(true, "Please connect your wallet first.", false);
                 LogWarning($"Wallet not connected in menu. redirectIfDisconnected={redirectIfDisconnected}");
 
                 if (redirectIfDisconnected)
@@ -110,6 +124,7 @@ namespace Project.Wallet
             }
 
             UpdateStatus("Loading NFTs...");
+            SetGatePanelState(true, "Loading and checking for NFTs...", false);
 
             try
             {
@@ -122,6 +137,7 @@ namespace Project.Wallet
             catch (Exception ex)
             {
                 UpdateStatus($"NFT load failed: {ex.Message}");
+                SetGatePanelState(true, "NFT check failed. Please retry.", false);
                 LogError($"NFT load failed: {ex}");
             }
         }
@@ -136,6 +152,7 @@ namespace Project.Wallet
             if (availableNfts.Count == 0)
             {
                 UpdateStatus("No NFTs found.");
+                SetGatePanelState(true, "Sorry, you don't have any NFTs in your wallet.", true);
                 LogWarning("No NFTs found after wallet fetch.");
                 nftDropdown.interactable = false;
                 return;
@@ -161,6 +178,7 @@ namespace Project.Wallet
             OnSelectionChanged(selectedIndex);
 
             UpdateStatus($"Loaded {availableNfts.Count} NFTs.");
+            SetGatePanelState(true, "NFTs found. Welcome to the game.", false);
 
             for (int i = 0; i < availableNfts.Count; i++)
             {
@@ -185,6 +203,26 @@ namespace Project.Wallet
                 statusText.text = text;
 
             LogDebug($"Status: {text}");
+        }
+
+        private void SetGatePanelState(bool visible, string message, bool showBuyButton)
+        {
+            if (nftGatePanel != null)
+                nftGatePanel.SetActive(visible);
+
+            if (nftGateMessageText != null)
+                nftGateMessageText.text = message;
+
+            if (buyNftsButton != null)
+                buyNftsButton.gameObject.SetActive(showBuyButton);
+        }
+
+        private void OpenBuyNftsUrl()
+        {
+            if (string.IsNullOrWhiteSpace(buyNftsUrl))
+                return;
+
+            Application.OpenURL(buyNftsUrl);
         }
 
         private void LogDebug(string message)

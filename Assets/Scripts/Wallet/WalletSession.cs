@@ -543,7 +543,14 @@ namespace Project.Wallet
 
             var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase;
             var prop = target.GetType().GetProperty(propertyName, flags);
-            return prop != null ? prop.GetValue(target) : null;
+            if (prop != null)
+                return prop.GetValue(target);
+
+            var field = target.GetType().GetField(propertyName, flags);
+            if (field != null)
+                return field.GetValue(target);
+
+            return null;
         }
 
         private void EnsureRpcNetworkForNfts()

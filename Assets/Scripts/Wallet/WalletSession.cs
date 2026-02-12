@@ -350,8 +350,7 @@ namespace Project.Wallet
 
                 var collectionKey = ResolveCollectionKey(nft);
                 var collectionName = ResolveCollectionName(nft);
-                string skinId = null;
-                var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
+                var hasCatalogKeywordMatch = TryResolveSkinId(name, out var skinId);
                 if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
                 {
                     LogDebug($"Filtered mint {mint}: collection mismatch. name='{name}', symbol='{symbol}', collectionKey='{collectionKey}', collectionName='{collectionName}', catalogMatch={hasCatalogKeywordMatch}");
@@ -588,8 +587,7 @@ namespace Project.Wallet
             var collectionKey = ResolveCollectionKey(nftObject);
             var collectionName = ResolveCollectionName(nftObject);
 
-            string skinId = null;
-            var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
+            var hasCatalogKeywordMatch = TryResolveSkinId(name, out var skinId);
             if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
                 return;
 
@@ -671,7 +669,7 @@ namespace Project.Wallet
                     if (itemObj is not Dictionary<string, object> item)
                         continue;
 
-                var mint = ReadString(item, "id");
+                    var mint = ReadString(item, "id");
                 var content = ReadDict(item, "content");
                 var metadata = ReadDict(content, "metadata");
                 var name = ReadString(metadata, "name");
@@ -698,8 +696,7 @@ namespace Project.Wallet
 
                 var collectionName = ReadString(ReadDict(item, "collection"), "name");
 
-                    string skinId = null;
-                    var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
+                    var hasCatalogKeywordMatch = TryResolveSkinId(name, out var skinId);
                     if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
                         continue;
                     if (!hasCatalogKeywordMatch)
@@ -729,6 +726,41 @@ namespace Project.Wallet
 
             var entry = colorCatalog.Colors[0];
             return string.IsNullOrWhiteSpace(entry.id) ? "0" : entry.id;
+        }
+
+        private bool TryResolveSkinId(string nftName, out string skinId)
+        {
+            skinId = null;
+
+            if (colorCatalog != null && colorCatalog.TryGetSkinIdByName(nftName, out skinId))
+                return true;
+
+            var normalized = NormalizeName(nftName);
+            if (string.IsNullOrWhiteSpace(normalized))
+                return false;
+
+            if (normalized.Contains("red")) { skinId = "red"; return true; }
+            if (normalized.Contains("blue")) { skinId = "blue"; return true; }
+            if (normalized.Contains("green")) { skinId = "green"; return true; }
+            if (normalized.Contains("yellow")) { skinId = "yellow"; return true; }
+            if (normalized.Contains("purple")) { skinId = "purple"; return true; }
+
+            return false;
+        }
+
+        private static string NormalizeName(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            var sb = new StringBuilder(value.Length);
+            foreach (var c in value)
+            {
+                if (char.IsLetterOrDigit(c))
+                    sb.Append(char.ToLowerInvariant(c));
+            }
+
+            return sb.ToString();
         }
 
         private static Dictionary<string, object> ReadDict(Dictionary<string, object> source, string key)

@@ -328,21 +328,35 @@ namespace Project.Wallet
 
             if (results.Count == 0)
             {
-                var reflectionNfts = await TryLoadNftsViaWalletReflectionAsync();
-                if (reflectionNfts.Count > 0)
+                try
                 {
-                    results.AddRange(reflectionNfts);
-                    LogDebug($"Added {reflectionNfts.Count} NFT(s) from wallet reflection fallback API.");
+                    var reflectionNfts = await TryLoadNftsViaWalletReflectionAsync();
+                    if (reflectionNfts.Count > 0)
+                    {
+                        results.AddRange(reflectionNfts);
+                        LogDebug($"Added {reflectionNfts.Count} NFT(s) from wallet reflection fallback API.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogWarning($"Reflection collectible fallback failed safely: {ex.Message}");
                 }
             }
 
             if (results.Count == 0)
             {
-                var dasNfts = await TryLoadCollectiblesViaDasAsync();
-                if (dasNfts.Count > 0)
+                try
                 {
-                    results.AddRange(dasNfts);
-                    LogDebug($"Added {dasNfts.Count} NFT(s) from DAS collectibles fallback API.");
+                    var dasNfts = await TryLoadCollectiblesViaDasAsync();
+                    if (dasNfts.Count > 0)
+                    {
+                        results.AddRange(dasNfts);
+                        LogDebug($"Added {dasNfts.Count} NFT(s) from DAS collectibles fallback API.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    LogWarning($"DAS collectible fallback failed safely: {ex.Message}");
                 }
             }
 
@@ -473,7 +487,7 @@ namespace Project.Wallet
                 return;
 
             if (!hasCatalogKeywordMatch)
-                return;
+                skinId = ResolveFallbackSkinId();
 
             if (output.Exists(x => !string.IsNullOrWhiteSpace(x.Mint) && string.Equals(x.Mint, mint, StringComparison.OrdinalIgnoreCase)))
                 return;
@@ -498,55 +512,57 @@ namespace Project.Wallet
             if (string.IsNullOrWhiteSpace(endpoint))
                 endpoint = mainnetRpcUrl;
 
-            var payload = new Dictionary<string, object>
+            try
             {
-                ["jsonrpc"] = "2.0",
-                ["id"] = "wallet-session-das",
-                ["method"] = "getAssetsByOwner",
-                ["params"] = new Dictionary<string, object>
+                var payload = new Dictionary<string, object>
                 {
-                    ["ownerAddress"] = WalletAddress,
-                    ["page"] = 1,
-                    ["limit"] = 100
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = "wallet-session-das",
+                    ["method"] = "getAssetsByOwner",
+                    ["params"] = new Dictionary<string, object>
+                    {
+                        ["ownerAddress"] = WalletAddress,
+                        ["page"] = 1,
+                        ["limit"] = 100
+                    }
+                };
+
+                var body = MiniJson.Serialize(payload);
+                using var request = new UnityWebRequest(endpoint, "POST");
+                request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(body));
+                request.downloadHandler = new DownloadHandlerBuffer();
+                request.SetRequestHeader("Content-Type", "application/json");
+
+                var op = request.SendWebRequest();
+                while (!op.isDone)
+                    await Task.Yield();
+
+                if (request.result != UnityWebRequest.Result.Success)
+                {
+                    LogWarning($"DAS getAssetsByOwner failed: {request.error}");
+                    return output;
                 }
-            };
 
-            var body = MiniJson.Serialize(payload);
-            using var request = new UnityWebRequest(endpoint, "POST");
-            request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(body));
-            request.downloadHandler = new DownloadHandlerBuffer();
-            request.SetRequestHeader("Content-Type", "application/json");
+                var root = MiniJson.Deserialize(request.downloadHandler.text) as Dictionary<string, object>;
+                if (root == null)
+                    return output;
 
-            var op = request.SendWebRequest();
-            while (!op.isDone)
-                await Task.Yield();
+                if (root.TryGetValue("error", out var errorObj) && errorObj != null)
+                {
+                    LogWarning($"DAS error: {errorObj}");
+                    return output;
+                }
 
-            if (request.result != UnityWebRequest.Result.Success)
-            {
-                LogWarning($"DAS getAssetsByOwner failed: {request.error}");
-                return output;
-            }
+                if (!root.TryGetValue("result", out var resultObj) || resultObj is not Dictionary<string, object> result)
+                    return output;
 
-            var root = MiniJson.Deserialize(request.downloadHandler.text) as Dictionary<string, object>;
-            if (root == null)
-                return output;
+                if (!result.TryGetValue("items", out var itemsObj) || itemsObj is not System.Collections.IEnumerable items)
+                    return output;
 
-            if (root.TryGetValue("error", out var errorObj) && errorObj != null)
-            {
-                LogWarning($"DAS error: {errorObj}");
-                return output;
-            }
-
-            if (!root.TryGetValue("result", out var resultObj) || resultObj is not Dictionary<string, object> result)
-                return output;
-
-            if (!result.TryGetValue("items", out var itemsObj) || itemsObj is not System.Collections.IEnumerable items)
-                return output;
-
-            foreach (var itemObj in items)
-            {
-                if (itemObj is not Dictionary<string, object> item)
-                    continue;
+                foreach (var itemObj in items)
+                {
+                    if (itemObj is not Dictionary<string, object> item)
+                        continue;
 
                 var mint = ReadString(item, "id");
                 var content = ReadDict(item, "content");
@@ -575,23 +591,37 @@ namespace Project.Wallet
 
                 var collectionName = ReadString(ReadDict(item, "collection"), "name");
 
-                string skinId = null;
-                var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
-                if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
-                    continue;
-                if (!hasCatalogKeywordMatch)
-                    continue;
+                    string skinId = null;
+                    var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
+                    if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
+                        continue;
+                    if (!hasCatalogKeywordMatch)
+                        skinId = ResolveFallbackSkinId();
 
-                output.Add(new NftInfo
-                {
-                    Name = name,
-                    Mint = mint,
-                    SkinId = skinId,
-                    ImageUrl = imageUrl
-                });
+                    output.Add(new NftInfo
+                    {
+                        Name = name,
+                        Mint = mint,
+                        SkinId = skinId,
+                        ImageUrl = imageUrl
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"DAS collectibles parsing failed safely: {ex.Message}");
             }
 
             return output;
+        }
+
+        private string ResolveFallbackSkinId()
+        {
+            if (colorCatalog == null || colorCatalog.Colors.Count == 0)
+                return "0";
+
+            var entry = colorCatalog.Colors[0];
+            return string.IsNullOrWhiteSpace(entry.id) ? "0" : entry.id;
         }
 
         private static Dictionary<string, object> ReadDict(Dictionary<string, object> source, string key)
@@ -854,11 +884,29 @@ namespace Project.Wallet
             var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase;
             var prop = target.GetType().GetProperty(propertyName, flags);
             if (prop != null)
-                return prop.GetValue(target);
+            {
+                try
+                {
+                    return prop.GetValue(target);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
 
             var field = target.GetType().GetField(propertyName, flags);
             if (field != null)
-                return field.GetValue(target);
+            {
+                try
+                {
+                    return field.GetValue(target);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
 
             return null;
         }

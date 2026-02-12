@@ -178,7 +178,7 @@ namespace Project.Wallet
             OnSelectionChanged(selectedIndex);
 
             UpdateStatus($"Loaded {availableNfts.Count} NFTs.");
-            SetGatePanelState(true, "NFTs found. Welcome to the game.", false);
+            SetGatePanelState(false, "NFTs found. Welcome to the game.", false);
 
             for (int i = 0; i < availableNfts.Count; i++)
             {

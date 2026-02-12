@@ -2,13 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
+using Project.Utils;
 using Solana.Unity.Rpc.Models;
 using Solana.Unity.Rpc.Types;
 using Solana.Unity.SDK;
 using Solana.Unity.SDK.Nft;
 using UnityEngine;
+using UnityEngine.Networking;
 using Project.Core;
 
 namespace Project.Wallet
@@ -333,6 +336,16 @@ namespace Project.Wallet
                 }
             }
 
+            if (results.Count == 0)
+            {
+                var dasNfts = await TryLoadCollectiblesViaDasAsync();
+                if (dasNfts.Count > 0)
+                {
+                    results.AddRange(dasNfts);
+                    LogDebug($"Added {dasNfts.Count} NFT(s) from DAS collectibles fallback API.");
+                }
+            }
+
             LogDebug($"LoadOwnedNftsAsync finished. Accepted NFTs before default fallback: {results.Count}");
             return EnsureDefaultIfNeeded(results);
         }
@@ -472,6 +485,134 @@ namespace Project.Wallet
                 SkinId = skinId,
                 ImageUrl = imageUrl
             });
+        }
+
+        private async Task<List<NftInfo>> TryLoadCollectiblesViaDasAsync()
+        {
+            var output = new List<NftInfo>();
+
+            if (string.IsNullOrWhiteSpace(WalletAddress))
+                return output;
+
+            var endpoint = GetCurrentRpcEndpoint();
+            if (string.IsNullOrWhiteSpace(endpoint))
+                endpoint = mainnetRpcUrl;
+
+            var payload = new Dictionary<string, object>
+            {
+                ["jsonrpc"] = "2.0",
+                ["id"] = "wallet-session-das",
+                ["method"] = "getAssetsByOwner",
+                ["params"] = new Dictionary<string, object>
+                {
+                    ["ownerAddress"] = WalletAddress,
+                    ["page"] = 1,
+                    ["limit"] = 100
+                }
+            };
+
+            var body = MiniJson.Serialize(payload);
+            using var request = new UnityWebRequest(endpoint, "POST");
+            request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(body));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+
+            var op = request.SendWebRequest();
+            while (!op.isDone)
+                await Task.Yield();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                LogWarning($"DAS getAssetsByOwner failed: {request.error}");
+                return output;
+            }
+
+            var root = MiniJson.Deserialize(request.downloadHandler.text) as Dictionary<string, object>;
+            if (root == null)
+                return output;
+
+            if (root.TryGetValue("error", out var errorObj) && errorObj != null)
+            {
+                LogWarning($"DAS error: {errorObj}");
+                return output;
+            }
+
+            if (!root.TryGetValue("result", out var resultObj) || resultObj is not Dictionary<string, object> result)
+                return output;
+
+            if (!result.TryGetValue("items", out var itemsObj) || itemsObj is not System.Collections.IEnumerable items)
+                return output;
+
+            foreach (var itemObj in items)
+            {
+                if (itemObj is not Dictionary<string, object> item)
+                    continue;
+
+                var mint = ReadString(item, "id");
+                var content = ReadDict(item, "content");
+                var metadata = ReadDict(content, "metadata");
+                var name = ReadString(metadata, "name");
+                var symbol = ReadString(metadata, "symbol");
+                var imageUrl = ReadString(ReadDict(content, "links"), "image");
+
+                var grouping = ReadEnumerable(item, "grouping");
+                string collectionKey = string.Empty;
+                if (grouping != null)
+                {
+                    foreach (var groupObj in grouping)
+                    {
+                        if (groupObj is not Dictionary<string, object> group)
+                            continue;
+
+                        var groupKey = ReadString(group, "group_key");
+                        if (string.Equals(groupKey, "collection", StringComparison.OrdinalIgnoreCase))
+                        {
+                            collectionKey = ReadString(group, "group_value");
+                            break;
+                        }
+                    }
+                }
+
+                var collectionName = ReadString(ReadDict(item, "collection"), "name");
+
+                string skinId = null;
+                var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
+                if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
+                    continue;
+                if (!hasCatalogKeywordMatch)
+                    continue;
+
+                output.Add(new NftInfo
+                {
+                    Name = name,
+                    Mint = mint,
+                    SkinId = skinId,
+                    ImageUrl = imageUrl
+                });
+            }
+
+            return output;
+        }
+
+        private static Dictionary<string, object> ReadDict(Dictionary<string, object> source, string key)
+        {
+            if (source == null || !source.TryGetValue(key, out var value) || value is not Dictionary<string, object> dict)
+                return null;
+            return dict;
+        }
+
+        private static string ReadString(Dictionary<string, object> source, string key)
+        {
+            if (source == null || !source.TryGetValue(key, out var value) || value == null)
+                return string.Empty;
+            return value.ToString() ?? string.Empty;
+        }
+
+        private static System.Collections.IEnumerable ReadEnumerable(Dictionary<string, object> source, string key)
+        {
+            if (source == null || !source.TryGetValue(key, out var value) || value is not System.Collections.IEnumerable list)
+                return null;
+            return list;
         }
 
         private async Task<string> LoginWalletAdapterAsync()

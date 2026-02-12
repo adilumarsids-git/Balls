@@ -74,7 +74,10 @@ namespace Project.Wallet
             {
                 var catalogs = Resources.FindObjectsOfTypeAll<BallColorCatalogSO>();
                 if (catalogs.Length > 0)
-                    colorCatalog = catalogs[0];
+                {
+                    colorCatalog = SelectBestCatalog(catalogs);
+                    Debug.Log($"[WalletSession] Auto-selected BallColorCatalog: '{colorCatalog.name}' (from {catalogs.Length} catalog asset(s)).");
+                }
             }
 
             if (collectionConfig == null)
@@ -83,6 +86,52 @@ namespace Project.Wallet
                 if (configs.Length > 0)
                     collectionConfig = configs[0];
             }
+        }
+
+        private static BallColorCatalogSO SelectBestCatalog(BallColorCatalogSO[] catalogs)
+        {
+            if (catalogs == null || catalogs.Length == 0)
+                return null;
+
+            BallColorCatalogSO best = catalogs[0];
+            var bestScore = ScoreCatalog(best);
+
+            for (int i = 1; i < catalogs.Length; i++)
+            {
+                var candidate = catalogs[i];
+                var score = ScoreCatalog(candidate);
+                if (score > bestScore)
+                {
+                    best = candidate;
+                    bestScore = score;
+                }
+            }
+
+            return best;
+        }
+
+        private static int ScoreCatalog(BallColorCatalogSO catalog)
+        {
+            if (catalog == null || catalog.Colors == null)
+                return -1;
+
+            var score = catalog.Colors.Count * 10;
+            foreach (var entry in catalog.Colors)
+            {
+                if (entry == null)
+                    continue;
+
+                var id = entry.id ?? string.Empty;
+                var name = entry.displayName ?? string.Empty;
+                if (id.Equals("red", StringComparison.OrdinalIgnoreCase) || name.IndexOf("red", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 2;
+                if (id.Equals("blue", StringComparison.OrdinalIgnoreCase) || name.IndexOf("blue", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 2;
+                if (id.Equals("green", StringComparison.OrdinalIgnoreCase) || name.IndexOf("green", StringComparison.OrdinalIgnoreCase) >= 0)
+                    score += 2;
+            }
+
+            return score;
         }
 
         public async Task ConnectAsync()

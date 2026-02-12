@@ -323,8 +323,155 @@ namespace Project.Wallet
                 LogDebug($"Accepted NFT mint {mint}: name='{name}', skinId='{skinId}', symbol='{symbol}', collectionKey='{collectionKey}', collectionName='{collectionName}'");
             }
 
+            if (results.Count == 0)
+            {
+                var reflectionNfts = await TryLoadNftsViaWalletReflectionAsync();
+                if (reflectionNfts.Count > 0)
+                {
+                    results.AddRange(reflectionNfts);
+                    LogDebug($"Added {reflectionNfts.Count} NFT(s) from wallet reflection fallback API.");
+                }
+            }
+
             LogDebug($"LoadOwnedNftsAsync finished. Accepted NFTs before default fallback: {results.Count}");
             return EnsureDefaultIfNeeded(results);
+        }
+
+        private async Task<List<NftInfo>> TryLoadNftsViaWalletReflectionAsync()
+        {
+            var output = new List<NftInfo>();
+            var wallet = Web3.Wallet;
+            if (wallet == null)
+                return output;
+
+            var candidateMethods = new[]
+            {
+                "GetNfts", "GetNFTs", "GetOwnedNfts", "GetCollectibles", "GetAssetsByOwner"
+            };
+
+            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
+            foreach (var methodName in candidateMethods)
+            {
+                var method = wallet.GetType().GetMethod(methodName, flags);
+                if (method == null)
+                    continue;
+
+                try
+                {
+                    object invocation;
+                    var parameters = method.GetParameters();
+                    if (parameters.Length == 0)
+                    {
+                        invocation = method.Invoke(wallet, null);
+                    }
+                    else if (parameters.Length == 1 && parameters[0].ParameterType == typeof(Commitment))
+                    {
+                        invocation = method.Invoke(wallet, new object[] { Commitment.Processed });
+                    }
+                    else
+                    {
+                        LogDebug($"Skipping wallet reflection method '{methodName}' due to unsupported signature.");
+                        continue;
+                    }
+
+                    var nftObjects = await AwaitToEnumerableAsync(invocation);
+                    if (nftObjects == null)
+                        continue;
+
+                    foreach (var nftObject in nftObjects)
+                        TryConvertCandidateNft(nftObject, output);
+
+                    LogDebug($"Wallet reflection method '{methodName}' returned {output.Count} accepted NFT(s).");
+                    if (output.Count > 0)
+                        return output;
+                }
+                catch (Exception ex)
+                {
+                    LogWarning($"Wallet reflection method '{methodName}' failed: {ex.Message}");
+                }
+            }
+
+            return output;
+        }
+
+        private async Task<IEnumerable<object>> AwaitToEnumerableAsync(object invocation)
+        {
+            if (invocation == null)
+                return null;
+
+            if (invocation is Task task)
+            {
+                await task;
+                var resultProp = task.GetType().GetProperty("Result", BindingFlags.Public | BindingFlags.Instance);
+                var resultValue = resultProp?.GetValue(task);
+                return ToObjectEnumerable(resultValue);
+            }
+
+            var asTaskMethod = invocation.GetType().GetMethod("AsTask", BindingFlags.Public | BindingFlags.Instance);
+            if (asTaskMethod != null)
+            {
+                var convertedTask = asTaskMethod.Invoke(invocation, null) as Task;
+                if (convertedTask != null)
+                {
+                    await convertedTask;
+                    var resultProp = convertedTask.GetType().GetProperty("Result", BindingFlags.Public | BindingFlags.Instance);
+                    var resultValue = resultProp?.GetValue(convertedTask);
+                    return ToObjectEnumerable(resultValue);
+                }
+            }
+
+            return ToObjectEnumerable(invocation);
+        }
+
+        private IEnumerable<object> ToObjectEnumerable(object value)
+        {
+            if (value == null)
+                return null;
+
+            if (value is IEnumerable<object> objects)
+                return objects;
+
+            if (value is System.Collections.IEnumerable enumerable)
+            {
+                var list = new List<object>();
+                foreach (var item in enumerable)
+                    list.Add(item);
+                return list;
+            }
+
+            return new[] { value };
+        }
+
+        private void TryConvertCandidateNft(object nftObject, List<NftInfo> output)
+        {
+            if (nftObject == null)
+                return;
+
+            var mint = ResolveNftMint(nftObject);
+            var name = ResolveNftName(nftObject, mint);
+            var symbol = ResolveNftSymbol(nftObject);
+            var imageUrl = ResolveNftImageUrl(nftObject);
+            var collectionKey = ResolveCollectionKey(nftObject);
+            var collectionName = ResolveCollectionName(nftObject);
+
+            string skinId = null;
+            var hasCatalogKeywordMatch = colorCatalog != null && colorCatalog.TryGetSkinIdByName(name, out skinId);
+            if (!IsCollectionMatch(symbol, collectionKey, collectionName, hasCatalogKeywordMatch))
+                return;
+
+            if (!hasCatalogKeywordMatch)
+                return;
+
+            if (output.Exists(x => !string.IsNullOrWhiteSpace(x.Mint) && string.Equals(x.Mint, mint, StringComparison.OrdinalIgnoreCase)))
+                return;
+
+            output.Add(new NftInfo
+            {
+                Name = name,
+                Mint = mint,
+                SkinId = skinId,
+                ImageUrl = imageUrl
+            });
         }
 
         private async Task<string> LoginWalletAdapterAsync()
@@ -477,6 +624,28 @@ namespace Project.Wallet
                 return name;
 
             return GetPropertyValue(collection, "family")?.ToString();
+        }
+
+        private static string ResolveNftMint(object nft)
+        {
+            var mint = GetPropertyValue(nft, "mint")?.ToString();
+            if (!string.IsNullOrWhiteSpace(mint))
+                return mint;
+
+            var metaplexData = GetPropertyValue(nft, "metaplexData");
+            var data = GetPropertyValue(metaplexData, "data");
+            var onchainData = GetPropertyValue(data, "onchainData");
+            mint = GetPropertyValue(onchainData, "mint")?.ToString();
+            if (!string.IsNullOrWhiteSpace(mint))
+                return mint;
+
+            var metadataAccount = GetPropertyValue(metaplexData, "metadataAccount");
+            mint = GetPropertyValue(metadataAccount, "mint")?.ToString();
+            if (!string.IsNullOrWhiteSpace(mint))
+                return mint;
+
+            var pubKey = GetPropertyValue(nft, "publicKey")?.ToString();
+            return pubKey ?? string.Empty;
         }
 
         private static string ResolveNftName(object nft, string mintFallback)

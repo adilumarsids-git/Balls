@@ -69,7 +69,8 @@ namespace Project.UI.Lobby
         private async Task Host()
         {
             Project.Core.LocalProfile.SetName(nameInput.text);
-            EnsureSelectedNft();
+            if (!EnsureSelectedNft())
+                return;
             string room = roomNameInput.text.Trim();
             int mapIndex = (mapDropdown != null && mapDropdown.value == 1)
                 ? mapBBuildIndex
@@ -83,15 +84,21 @@ namespace Project.UI.Lobby
             string room = roomNameInput.text.Trim();
             if (string.IsNullOrEmpty(room)) return;
 
-            EnsureSelectedNft();
+            if (!EnsureSelectedNft())
+                return;
             await launcher.Join(room);
         }
 
-        private void EnsureSelectedNft()
+        private bool EnsureSelectedNft()
         {
             var session = WalletSession.Instance ?? WalletSession.FindOrCreate();
             if (session != null && !session.EnsureSelectedNft())
-                Debug.LogWarning("No NFT selected for this wallet session.");
+            {
+                Debug.LogWarning("No NFT selected for this wallet session. Hosting/Joining is blocked.");
+                return false;
+            }
+
+            return true;
         }
 
         private void OnSessionListChanged(IReadOnlyList<SessionInfo> sessions)

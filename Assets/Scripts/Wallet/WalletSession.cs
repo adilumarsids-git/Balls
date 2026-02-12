@@ -739,11 +739,51 @@ namespace Project.Wallet
             if (string.IsNullOrWhiteSpace(normalized))
                 return false;
 
-            if (normalized.Contains("red")) { skinId = "red"; return true; }
-            if (normalized.Contains("blue")) { skinId = "blue"; return true; }
-            if (normalized.Contains("green")) { skinId = "green"; return true; }
-            if (normalized.Contains("yellow")) { skinId = "yellow"; return true; }
-            if (normalized.Contains("purple")) { skinId = "purple"; return true; }
+            if (TryResolveSkinIdByColorToken("red", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("blue", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("green", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("yellow", normalized, out skinId)) return true;
+            if (TryResolveSkinIdByColorToken("purple", normalized, out skinId)) return true;
+
+            return false;
+        }
+
+        private bool TryResolveSkinIdByColorToken(string token, string normalizedNftName, out string skinId)
+        {
+            skinId = null;
+            if (colorCatalog == null || colorCatalog.Colors == null)
+                return false;
+
+            if (!normalizedNftName.Contains(token, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            foreach (var entry in colorCatalog.Colors)
+            {
+                if (entry == null)
+                    continue;
+
+                var idNorm = NormalizeName(entry.id);
+                var displayNorm = NormalizeName(entry.displayName);
+                if (idNorm.Contains(token, StringComparison.OrdinalIgnoreCase)
+                    || displayNorm.Contains(token, StringComparison.OrdinalIgnoreCase))
+                {
+                    skinId = string.IsNullOrWhiteSpace(entry.id) ? ResolveFallbackSkinId() : entry.id;
+                    return true;
+                }
+
+                if (entry.nftKeywords == null)
+                    continue;
+
+                foreach (var keyword in entry.nftKeywords)
+                {
+                    var keywordNorm = NormalizeName(keyword);
+                    if (keywordNorm.Contains(token, StringComparison.OrdinalIgnoreCase))
+                    {
+                        skinId = string.IsNullOrWhiteSpace(entry.id) ? ResolveFallbackSkinId() : entry.id;
+                        return true;
+                    }
+                }
+            }
 
             return false;
         }
@@ -850,19 +890,7 @@ namespace Project.Wallet
 
         private List<NftInfo> EnsureDefaultIfNeeded(List<NftInfo> results)
         {
-            if (results.Count > 0)
-                return results;
-
-            if (collectionConfig != null && !collectionConfig.AllowDefaultSkin)
-                return results;
-
-            var defaultNft = CreateDefaultNft();
-            if (defaultNft != null)
-            {
-                results.Add(defaultNft);
-                LogDebug($"No matching NFTs found. Added default fallback skin: {defaultNft.SkinId} ({defaultNft.Name})");
-            }
-
+            // Default skin fallback is disabled by design.
             return results;
         }
 

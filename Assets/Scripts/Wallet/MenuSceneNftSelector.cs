@@ -160,10 +160,7 @@ namespace Project.Wallet
             nftDropdown.interactable = true;
             OnSelectionChanged(selectedIndex);
 
-            if (availableNfts.Count == 1 && string.IsNullOrWhiteSpace(availableNfts[0].Mint))
-                UpdateStatus("No NFTs found. Using default skin.");
-            else
-                UpdateStatus($"Loaded {availableNfts.Count} NFTs.");
+            UpdateStatus($"Loaded {availableNfts.Count} NFTs.");
 
             for (int i = 0; i < availableNfts.Count; i++)
             {

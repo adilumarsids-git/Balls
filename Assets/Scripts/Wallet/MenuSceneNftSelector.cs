@@ -152,7 +152,7 @@ namespace Project.Wallet
             if (availableNfts.Count == 0)
             {
                 UpdateStatus("No NFTs found.");
-                SetGatePanelState(true, "Sorry, you don't have any NFTs in your wallet.", true);
+                SetGatePanelState(true, "Sorry, you don't own any NFTs in your wallet.", true);
                 LogWarning("No NFTs found after wallet fetch.");
                 nftDropdown.interactable = false;
                 return;

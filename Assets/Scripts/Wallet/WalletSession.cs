@@ -371,35 +371,26 @@ namespace Project.Wallet
             if (wallet == null)
                 return output;
 
-            var candidateMethods = new[]
-            {
-                "GetNfts", "GetNFTs", "GetOwnedNfts", "GetCollectibles", "GetAssetsByOwner"
-            };
-
             var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-            foreach (var methodName in candidateMethods)
+            var methods = wallet.GetType().GetMethods(flags)
+                .Where(m =>
+                    m.Name.Contains("nft", StringComparison.OrdinalIgnoreCase) ||
+                    m.Name.Contains("collectible", StringComparison.OrdinalIgnoreCase) ||
+                    m.Name.Contains("asset", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(m => m.Name)
+                .ToArray();
+
+            foreach (var method in methods)
             {
-                var method = wallet.GetType().GetMethod(methodName, flags);
-                if (method == null)
+                if (!TryBuildInvocationArgs(method, out var args))
+                {
+                    LogDebug($"Skipping wallet reflection method '{method.Name}' due to unsupported signature.");
                     continue;
+                }
 
                 try
                 {
-                    object invocation;
-                    var parameters = method.GetParameters();
-                    if (parameters.Length == 0)
-                    {
-                        invocation = method.Invoke(wallet, null);
-                    }
-                    else if (parameters.Length == 1 && parameters[0].ParameterType == typeof(Commitment))
-                    {
-                        invocation = method.Invoke(wallet, new object[] { Commitment.Processed });
-                    }
-                    else
-                    {
-                        LogDebug($"Skipping wallet reflection method '{methodName}' due to unsupported signature.");
-                        continue;
-                    }
+                    object invocation = method.Invoke(wallet, args);
 
                     var nftObjects = await AwaitToEnumerableAsync(invocation);
                     if (nftObjects == null)
@@ -408,17 +399,84 @@ namespace Project.Wallet
                     foreach (var nftObject in nftObjects)
                         TryConvertCandidateNft(nftObject, output);
 
-                    LogDebug($"Wallet reflection method '{methodName}' returned {output.Count} accepted NFT(s).");
+                    LogDebug($"Wallet reflection method '{method.Name}' returned {output.Count} accepted NFT(s).");
                     if (output.Count > 0)
                         return output;
                 }
                 catch (Exception ex)
                 {
-                    LogWarning($"Wallet reflection method '{methodName}' failed: {ex.Message}");
+                    LogWarning($"Wallet reflection method '{method.Name}' failed: {ex.Message}");
                 }
             }
 
             return output;
+        }
+
+        private bool TryBuildInvocationArgs(MethodInfo method, out object[] args)
+        {
+            var parameters = method.GetParameters();
+            if (parameters.Length == 0)
+            {
+                args = null;
+                return true;
+            }
+
+            args = new object[parameters.Length];
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var p = parameters[i];
+                var t = p.ParameterType;
+
+                if (t == typeof(string))
+                {
+                    args[i] = WalletAddress;
+                    continue;
+                }
+
+                if (t == typeof(int))
+                {
+                    var name = p.Name ?? string.Empty;
+                    if (name.Contains("page", StringComparison.OrdinalIgnoreCase)) args[i] = 1;
+                    else if (name.Contains("limit", StringComparison.OrdinalIgnoreCase)) args[i] = 100;
+                    else args[i] = 0;
+                    continue;
+                }
+
+                if (t == typeof(bool))
+                {
+                    args[i] = true;
+                    continue;
+                }
+
+                if (t == typeof(Commitment))
+                {
+                    args[i] = Commitment.Processed;
+                    continue;
+                }
+
+                if (t.IsEnum)
+                {
+                    try
+                    {
+                        args[i] = Enum.Parse(t, "Processed", true);
+                    }
+                    catch
+                    {
+                        args[i] = Enum.GetValues(t).GetValue(0);
+                    }
+                    continue;
+                }
+
+                if (p.HasDefaultValue)
+                {
+                    args[i] = p.DefaultValue;
+                    continue;
+                }
+
+                return false;
+            }
+
+            return true;
         }
 
         private async Task<IEnumerable<object>> AwaitToEnumerableAsync(object invocation)

@@ -33,6 +33,7 @@ namespace Project.Networking.Fusion
         private float noBrakeTimer;
         private Camera localCamera;
         private Vector3 cameraForward;
+        private bool cameraInitialized;
 
         [Networked] private Vector2 LastMoveDir { get; set; }
         [Networked] public NetworkString<_16> PlayerName { get; private set; }
@@ -152,6 +153,14 @@ namespace Project.Networking.Fusion
             float rotT = 1f - Mathf.Exp(-cameraRotationLerp * Time.deltaTime);
 
             Transform camTransform = localCamera.transform;
+            if (!cameraInitialized)
+            {
+                camTransform.position = desiredPos;
+                camTransform.rotation = Quaternion.LookRotation((focus - desiredPos).normalized, Vector3.up);
+                cameraInitialized = true;
+                return;
+            }
+
             camTransform.position = Vector3.Lerp(camTransform.position, desiredPos, posT);
 
             Quaternion desiredRot = Quaternion.LookRotation((focus - camTransform.position).normalized, Vector3.up);
@@ -163,8 +172,46 @@ namespace Project.Networking.Fusion
             if (localCamera == null)
                 localCamera = Camera.main != null ? Camera.main : FindObjectOfType<Camera>();
 
+            cameraForward = ResolveSpawnForward();
+            cameraInitialized = false;
+        }
+
+        private Vector3 ResolveSpawnForward()
+        {
+            var spawnParent = GameObject.Find("SpawnPoints");
+            if (spawnParent != null)
+            {
+                Transform nearest = null;
+                float nearestSq = float.MaxValue;
+                var points = spawnParent.GetComponentsInChildren<Transform>(true);
+                for (int i = 0; i < points.Length; i++)
+                {
+                    Transform point = points[i];
+                    if (point == spawnParent.transform)
+                        continue;
+
+                    float sq = (point.position - transform.position).sqrMagnitude;
+                    if (sq < nearestSq)
+                    {
+                        nearestSq = sq;
+                        nearest = point;
+                    }
+                }
+
+                if (nearest != null)
+                {
+                    Vector3 spawnForward = Vector3.ProjectOnPlane(nearest.forward, Vector3.up);
+                    if (spawnForward.sqrMagnitude > 0.0001f)
+                        return spawnForward.normalized;
+                }
+
+                Vector3 toCenter = Vector3.ProjectOnPlane(spawnParent.transform.position - transform.position, Vector3.up);
+                if (toCenter.sqrMagnitude > 0.0001f)
+                    return toCenter.normalized;
+            }
+
             Vector3 forwardOnPlane = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
-            cameraForward = forwardOnPlane.sqrMagnitude > 0.0001f ? forwardOnPlane.normalized : Vector3.forward;
+            return forwardOnPlane.sqrMagnitude > 0.0001f ? forwardOnPlane.normalized : Vector3.forward;
         }
 
         private void OnCollisionEnter(Collision collision)

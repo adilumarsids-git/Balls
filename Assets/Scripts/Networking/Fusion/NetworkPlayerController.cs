@@ -18,12 +18,21 @@ namespace Project.Networking.Fusion
         [SerializeField] private float bumpDamping = 0.95f;
         [SerializeField] private float postBumpNoBrakeSeconds = 0.2f;
 
+        [Header("Local Camera")]
+        [SerializeField] private float cameraDistance = 9f;
+        [SerializeField] private float cameraHeight = 5f;
+        [SerializeField] private float cameraLookHeight = 1.2f;
+        [SerializeField] private float cameraPositionLerp = 10f;
+        [SerializeField] private float cameraRotationLerp = 12f;
+
         [Networked] private NetworkBool AuthorityRequested { get; set; }
 
         private NetworkRigidbody3D nrb;
         private Rigidbody rb;
         private PlayerStats stats;
         private float noBrakeTimer;
+        private Camera localCamera;
+        private Vector3 cameraForward;
 
         [Networked] private Vector2 LastMoveDir { get; set; }
         [Networked] public NetworkString<_16> PlayerName { get; private set; }
@@ -49,6 +58,9 @@ namespace Project.Networking.Fusion
                 AuthorityRequested = true;
                 Object.RequestStateAuthority();
             }
+
+            if (Object.HasInputAuthority)
+                SetupLocalCamera();
         }
 
         public override void FixedUpdateNetwork()
@@ -119,6 +131,40 @@ namespace Project.Networking.Fusion
                 clamped = clamped.normalized * targetMax;
                 rb.linearVelocity = new Vector3(clamped.x, rb.linearVelocity.y, clamped.y);
             }
+        }
+
+        private void LateUpdate()
+        {
+            if (Object == null || !Object.HasInputAuthority)
+                return;
+
+            if (localCamera == null)
+            {
+                SetupLocalCamera();
+                if (localCamera == null)
+                    return;
+            }
+
+            Vector3 focus = transform.position + Vector3.up * cameraLookHeight;
+            Vector3 desiredPos = focus - cameraForward * cameraDistance + Vector3.up * (cameraHeight - cameraLookHeight);
+
+            float posT = 1f - Mathf.Exp(-cameraPositionLerp * Time.deltaTime);
+            float rotT = 1f - Mathf.Exp(-cameraRotationLerp * Time.deltaTime);
+
+            Transform camTransform = localCamera.transform;
+            camTransform.position = Vector3.Lerp(camTransform.position, desiredPos, posT);
+
+            Quaternion desiredRot = Quaternion.LookRotation((focus - camTransform.position).normalized, Vector3.up);
+            camTransform.rotation = Quaternion.Slerp(camTransform.rotation, desiredRot, rotT);
+        }
+
+        private void SetupLocalCamera()
+        {
+            if (localCamera == null)
+                localCamera = Camera.main != null ? Camera.main : FindObjectOfType<Camera>();
+
+            Vector3 forwardOnPlane = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+            cameraForward = forwardOnPlane.sqrMagnitude > 0.0001f ? forwardOnPlane.normalized : Vector3.forward;
         }
 
         private void OnCollisionEnter(Collision collision)

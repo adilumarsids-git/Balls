@@ -181,26 +181,15 @@ namespace Project.Networking.Fusion
             var spawnParent = GameObject.Find("SpawnPoints");
             if (spawnParent != null)
             {
-                Transform nearest = null;
-                float nearestSq = float.MaxValue;
                 var points = spawnParent.GetComponentsInChildren<Transform>(true);
-                for (int i = 0; i < points.Length; i++)
+                int usable = points.Length - 1;
+                if (usable > 0)
                 {
-                    Transform point = points[i];
-                    if (point == spawnParent.transform)
-                        continue;
+                    int playerKey = Object != null ? Mathf.Abs(Object.InputAuthority.RawEncoded) : 0;
+                    int index = (playerKey % usable) + 1;
+                    Transform assignedSpawn = points[index];
 
-                    float sq = (point.position - transform.position).sqrMagnitude;
-                    if (sq < nearestSq)
-                    {
-                        nearestSq = sq;
-                        nearest = point;
-                    }
-                }
-
-                if (nearest != null)
-                {
-                    Vector3 spawnForward = Vector3.ProjectOnPlane(nearest.forward, Vector3.up);
+                    Vector3 spawnForward = Vector3.ProjectOnPlane(assignedSpawn.forward, Vector3.up);
                     if (spawnForward.sqrMagnitude > 0.0001f)
                         return spawnForward.normalized;
                 }

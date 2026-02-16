@@ -60,6 +60,7 @@ namespace Project.Networking.Fusion
 
             var obj = runner.Spawn(playerPrefab, t.position, t.rotation, player);
             spawnedPlayers[player] = obj;
+            runner.SetPlayerObject(player, obj);
 
             var ctrl = obj.GetComponent<NetworkPlayerController>();
             if (ctrl != null)
@@ -72,6 +73,12 @@ namespace Project.Networking.Fusion
             Debug.Log($"[Spawner] Server spawned for={player} obj.InputAuthority={obj.InputAuthority}");
         }
 
+        public void ResetSpawnerState()
+        {
+            spawnedPlayers.Clear();
+            spawnPoints = null;
+        }
+
         public void DespawnPlayerFor(PlayerRef player)
         {
             if (runner == null || !runner.IsServer)
@@ -81,6 +88,8 @@ namespace Project.Networking.Fusion
                 return;
 
             spawnedPlayers.Remove(player);
+
+            runner.SetPlayerObject(player, null);
 
             if (playerObject != null)
                 runner.Despawn(playerObject);

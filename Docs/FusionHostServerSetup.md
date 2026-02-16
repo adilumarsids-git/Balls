@@ -94,6 +94,20 @@ Also ensure the prefab is registered in Fusion network prefabs (Project config) 
 
 ---
 
+
+## Host-leave continuity (Host Migration)
+
+To keep the match alive when the current host exits, enable Fusion host migration in your project config:
+
+1. Open the Fusion `NetworkProjectConfig` asset in Unity.
+2. Enable **Host Migration**.
+3. Set a sensible snapshot update delay (e.g. 1-2 seconds).
+4. Keep `FusionLauncher.enableHostMigration` enabled on the bootstrap runner object.
+
+Without Host Migration enabled in config/cloud, clients will still disconnect when the host exits.
+
+---
+
 ## 3) Validation steps in Editor
 
 Run this quick end-to-end check with 2+ clients:

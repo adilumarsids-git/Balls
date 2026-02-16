@@ -68,8 +68,9 @@ namespace Project.Networking.Fusion
             if (moveConfig == null || gameConfig == null || !Object.HasStateAuthority)
                 return;
 
-            if (!GetInput(out NetInput input))
-                input = default;
+            NetInput input = default;
+            if (!GetInput(out input))
+                Runner.TryGetInputForPlayer(Object.InputAuthority, out input);
 
             if (noBrakeTimer > 0f)
                 noBrakeTimer = Mathf.Max(0f, noBrakeTimer - Runner.DeltaTime);

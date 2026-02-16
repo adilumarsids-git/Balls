@@ -15,26 +15,43 @@ namespace Project.Networking.Fusion
         [SerializeField] private SessionLobby lobby = SessionLobby.ClientServer; // Public lobby list
         [SerializeField] private int menuSceneBuildIndex = 2; // 02_Menu
 
+        [Header("Host Migration")]
+        [SerializeField] private bool enableHostMigration = true;
+
         private NetworkRunner runner;
         private PlayerSpawner spawner;
+        private FusionInputProvider inputProvider;
+        private bool hostMigrationInProgress;
 
         public event Action<IReadOnlyList<SessionInfo>> SessionListChanged;
 
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
+            EnsureComponents();
+            ConfigureRunner();
+        }
+
+        private void EnsureComponents()
+        {
             runner = GetComponent<NetworkRunner>();
+            if (runner == null)
+                runner = gameObject.AddComponent<NetworkRunner>();
+
             spawner = GetComponent<PlayerSpawner>();
+            inputProvider = GetComponent<FusionInputProvider>();
+        }
 
+        private void ConfigureRunner()
+        {
             runner.ProvideInput = true;
-
             runner.AddCallbacks(this);
 
-            var inputProvider = GetComponent<FusionInputProvider>();
             if (inputProvider != null)
                 runner.AddCallbacks(inputProvider);
 
-            spawner.Init(runner);
+            if (spawner != null)
+                spawner.Init(runner);
         }
 
         public async Task JoinPublicLobby()
@@ -61,11 +78,11 @@ namespace Project.Networking.Fusion
                 IsOpen = true,
                 PlayerCount = maxPlayers,
 
-                // ✅ Add session props (visible in public list)
+                // Add session props (visible in public list)
                 SessionProperties = new Dictionary<string, SessionProperty>
-        {
-            { "map", mapBuildIndex }
-        }
+                {
+                    { "map", mapBuildIndex }
+                }
             };
 
             var result = await runner.StartGame(args);
@@ -130,6 +147,82 @@ namespace Project.Networking.Fusion
             SceneManager.LoadScene(menuSceneBuildIndex);
         }
 
+        private bool ShouldReturnToMenu(ShutdownReason shutdownReason)
+        {
+            if (hostMigrationInProgress)
+                return false;
+
+            if (shutdownReason == ShutdownReason.HostMigration)
+                return false;
+
+            return true;
+        }
+
+        private async void ResumeFromHostMigration(HostMigrationToken hostMigrationToken)
+        {
+            if (!enableHostMigration)
+            {
+                hostMigrationInProgress = false;
+                ReturnToMenu();
+                return;
+            }
+
+            if (hostMigrationToken == null)
+            {
+                hostMigrationInProgress = false;
+                ReturnToMenu();
+                return;
+            }
+
+            Debug.Log("[FusionLauncher] Host migration started. Rebuilding runner...");
+
+            var oldRunner = runner;
+
+            if (oldRunner != null)
+            {
+                oldRunner.RemoveCallbacks(this);
+                if (inputProvider != null)
+                    oldRunner.RemoveCallbacks(inputProvider);
+
+                oldRunner.Shutdown(destroyGameObject: false, shutdownReason: ShutdownReason.HostMigration);
+                Destroy(oldRunner);
+            }
+
+            runner = gameObject.AddComponent<NetworkRunner>();
+            ConfigureRunner();
+
+            if (spawner != null)
+                spawner.ResetSpawnerState();
+
+            var result = await runner.StartGame(new StartGameArgs
+            {
+                GameMode = hostMigrationToken.GameMode,
+                SceneManager = GetSceneManager(),
+                HostMigrationToken = hostMigrationToken,
+                HostMigrationResume = OnHostMigrationResume
+            });
+
+            hostMigrationInProgress = false;
+
+            if (!result.Ok)
+            {
+                Debug.LogError($"[FusionLauncher] Host migration resume failed: {result.ShutdownReason}");
+                ReturnToMenu();
+            }
+        }
+
+        private void OnHostMigrationResume(NetworkRunner resumedRunner)
+        {
+            Debug.Log("[FusionLauncher] Host migration resume completed.");
+
+            if (spawner == null || resumedRunner == null || !resumedRunner.IsServer)
+                return;
+
+            spawner.RefreshSpawnPoints();
+
+            foreach (var player in resumedRunner.ActivePlayers)
+                spawner.SpawnPlayerFor(player);
+        }
 
         // Unused
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
@@ -139,30 +232,52 @@ namespace Project.Networking.Fusion
 
             spawner.DespawnPlayerFor(player);
         }
+
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
+
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
-            ReturnToMenu();
+            if (ShouldReturnToMenu(shutdownReason))
+                ReturnToMenu();
         }
+
         public void OnConnectedToServer(NetworkRunner runner) { }
+
         public void OnDisconnectedFromServer(NetworkRunner runner)
         {
-            ReturnToMenu();
+            if (!hostMigrationInProgress)
+                ReturnToMenu();
         }
+
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
         public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
         public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
-        public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
+
+        public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken)
+        {
+            if (!enableHostMigration)
+                return;
+
+            if (hostMigrationInProgress)
+                return;
+
+            hostMigrationInProgress = true;
+            ResumeFromHostMigration(hostMigrationToken);
+        }
+
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
         public void OnSceneLoadStart(NetworkRunner runner) { }
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
         public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
         {
-            ReturnToMenu();
+            if (!hostMigrationInProgress)
+                ReturnToMenu();
         }
+
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     }
 }

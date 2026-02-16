@@ -141,11 +141,11 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 0
+  m_UseGravity: 1
   m_IsKinematic: 0
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
 --- !u!114 &4117052583791421588
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -257,3 +257,30 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Project.Networking.Fusion.NetworkPlayerController
   moveConfig: {fileID: 11400000, guid: c9c8d9f8a13369e47b3704051ccb90aa, type: 2}
   gameConfig: {fileID: 11400000, guid: 013bea5367083404fb67f22860c1b645, type: 2}
+<<<<<<< Updated upstream
+=======
+  minBumpImpactSpeed: 1.25
+  bumpExaggeration: 1.35
+  bumpDamping: 0.95
+  postBumpNoBrakeSeconds: 0.2
+  boostDuration: 0.5
+  boostCooldown: 5
+  _PlayerName:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+--- !u!114 &7912456839123456789
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6924734720055343089}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c23b2a3d4e54c6f8a9b0c1d2e3f4a5b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  colorCatalog: {fileID: 11400000, guid: 6e7d28e0c8a34a84a8c0f2a8c63a88b5, type: 2}
+  targetRenderer: {fileID: 2262371025355577879}
+>>>>>>> Stashed changes

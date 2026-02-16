@@ -17,11 +17,13 @@ namespace Project.Networking.Fusion
 
         [Header("Host Migration")]
         [SerializeField] private bool enableHostMigration = true;
+        [SerializeField] private float hostMigrationGraceSeconds = 6f;
 
         private NetworkRunner runner;
         private PlayerSpawner spawner;
         private FusionInputProvider inputProvider;
         private bool hostMigrationInProgress;
+        private Coroutine pendingDisconnectCoroutine;
 
         public event Action<IReadOnlyList<SessionInfo>> SessionListChanged;
 
@@ -158,6 +160,37 @@ namespace Project.Networking.Fusion
             return true;
         }
 
+        private void CancelPendingDisconnectReturn()
+        {
+            if (pendingDisconnectCoroutine == null)
+                return;
+
+            StopCoroutine(pendingDisconnectCoroutine);
+            pendingDisconnectCoroutine = null;
+        }
+
+        private void BeginPendingDisconnectReturn()
+        {
+            if (!enableHostMigration)
+            {
+                ReturnToMenu();
+                return;
+            }
+
+            CancelPendingDisconnectReturn();
+            pendingDisconnectCoroutine = StartCoroutine(DisconnectGraceRoutine());
+        }
+
+        private System.Collections.IEnumerator DisconnectGraceRoutine()
+        {
+            yield return new WaitForSeconds(hostMigrationGraceSeconds);
+
+            pendingDisconnectCoroutine = null;
+
+            if (!hostMigrationInProgress)
+                ReturnToMenu();
+        }
+
         private async void ResumeFromHostMigration(HostMigrationToken hostMigrationToken)
         {
             if (!enableHostMigration)
@@ -174,6 +207,7 @@ namespace Project.Networking.Fusion
                 return;
             }
 
+            CancelPendingDisconnectReturn();
             Debug.Log("[FusionLauncher] Host migration started. Rebuilding runner...");
 
             var oldRunner = runner;
@@ -241,12 +275,17 @@ namespace Project.Networking.Fusion
                 ReturnToMenu();
         }
 
-        public void OnConnectedToServer(NetworkRunner runner) { }
+        public void OnConnectedToServer(NetworkRunner runner)
+        {
+            CancelPendingDisconnectReturn();
+        }
 
         public void OnDisconnectedFromServer(NetworkRunner runner)
         {
-            if (!hostMigrationInProgress)
-                ReturnToMenu();
+            if (hostMigrationInProgress)
+                return;
+
+            BeginPendingDisconnectReturn();
         }
 
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
@@ -263,6 +302,7 @@ namespace Project.Networking.Fusion
                 return;
 
             hostMigrationInProgress = true;
+            CancelPendingDisconnectReturn();
             ResumeFromHostMigration(hostMigrationToken);
         }
 
@@ -274,8 +314,10 @@ namespace Project.Networking.Fusion
 
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
         {
-            if (!hostMigrationInProgress)
-                ReturnToMenu();
+            if (hostMigrationInProgress)
+                return;
+
+            BeginPendingDisconnectReturn();
         }
 
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }

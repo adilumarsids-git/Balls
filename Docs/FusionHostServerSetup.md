@@ -108,6 +108,22 @@ Without Host Migration enabled in config/cloud, clients will still disconnect wh
 
 ---
 
+
+## Scene audit notes (current project)
+
+I checked the project scenes and found these important items:
+
+- `00_Bootstrap` already contains `NetworkRunner`, `FusionLauncher`, `FusionInputProvider`, `PlayerSpawner`, and `NetworkSceneManagerDefault` on `NetworkBootstrap`.
+- `10_Map_Island_A` and `11_Map_Island_B` both contain a correctly named `SpawnPoints` object.
+- Both maps contain many misspelled `ConsumeableSpawnPoints` objects and one correctly spelled `ConsumableSpawnPoints` object.
+  - Current code only uses `ConsumableSpawnPoints` (correct spelling), so keep at least one correctly named object.
+  - You can safely remove/rename the misspelled duplicates to avoid confusion.
+- `NetworkProjectConfig.fusion` must have:
+  - `Simulation.InputDataWordCount` set for your input struct (this repo now uses `3` for `Vector2 + Boost`),
+  - `HostMigration.EnableAutoUpdate = true` and a low `UpdateDelay` (this repo now uses `2`).
+
+---
+
 ## 3) Validation steps in Editor
 
 Run this quick end-to-end check with 2+ clients:

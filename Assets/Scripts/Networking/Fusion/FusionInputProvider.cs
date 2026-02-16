@@ -13,7 +13,19 @@ namespace Project.Networking.Fusion
 
         private void Update()
         {
-            move = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+            float x = 0f;
+            float y = 0f;
+
+            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) x -= 1f;
+            if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) x += 1f;
+            if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) y -= 1f;
+            if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) y += 1f;
+
+            var keyMove = new Vector2(x, y);
+            if (keyMove == Vector2.zero)
+                keyMove = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+
+            move = keyMove;
             if (move.sqrMagnitude > 1f) move.Normalize();
 
             // Hold-to-boost turbo

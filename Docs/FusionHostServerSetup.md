@@ -106,6 +106,8 @@ To keep the match alive when the current host exits, enable Fusion host migratio
 
 Without Host Migration enabled in config/cloud, clients will still disconnect when the host exits.
 
+Reconnect fallback: if a host-migration token is not received in time, `FusionLauncher` now attempts automatic client reconnects to the same session before sending players back to menu.
+
 ---
 
 
@@ -121,7 +123,7 @@ I checked the project scenes and found these important items:
   - You can safely remove/rename the misspelled duplicates to avoid confusion.
 - `NetworkProjectConfig.fusion` must have:
   - For WebGL builds hosting/joining in Host/Server, `AllowClientServerModesInWebGL` must be `true` (otherwise host start fails with `IncompatibleConfiguration`).
-  - `Simulation.InputDataWordCount` set for your input struct (this repo now uses `4` for `Vector2 + Boost` (safe padded word count)).
+  - `Simulation.InputDataWordCount` set for your input struct (this repo now uses `3` for `Vector2 + Boost`).
   - `HostMigration.EnableAutoUpdate = true` and a low `UpdateDelay` (this repo now uses `2`).
 
 ---

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fusion;
@@ -22,8 +23,10 @@ namespace Project.Networking.Fusion
         private NetworkRunner runner;
         private PlayerSpawner spawner;
         private FusionInputProvider inputProvider;
+
         private bool hostMigrationInProgress;
-        private Coroutine pendingDisconnectCoroutine;
+        private Coroutine reconnectCoroutine;
+        private string activeSessionName;
 
         public event Action<IReadOnlyList<SessionInfo>> SessionListChanged;
 
@@ -56,16 +59,36 @@ namespace Project.Networking.Fusion
                 spawner.Init(runner);
         }
 
+        private void RebuildRunner(ShutdownReason shutdownReason)
+        {
+            var oldRunner = runner;
+            if (oldRunner != null)
+            {
+                oldRunner.RemoveCallbacks(this);
+                if (inputProvider != null)
+                    oldRunner.RemoveCallbacks(inputProvider);
+
+                oldRunner.Shutdown(destroyGameObject: false, shutdownReason: shutdownReason);
+                Destroy(oldRunner);
+            }
+
+            runner = gameObject.AddComponent<NetworkRunner>();
+            ConfigureRunner();
+
+            if (spawner != null)
+                spawner.ResetSpawnerState();
+        }
+
         public async Task JoinPublicLobby()
         {
-            // Can be called multiple times safely
             await runner.JoinSessionLobby(lobby);
         }
 
         public async Task Host(string roomName, int mapBuildIndex, int maxPlayers = 4)
         {
-            var sceneManager = GetSceneManager();
+            activeSessionName = roomName;
 
+            var sceneManager = GetSceneManager();
             var sceneInfo = new NetworkSceneInfo();
             sceneInfo.AddSceneRef(SceneRef.FromIndex(mapBuildIndex));
 
@@ -75,12 +98,9 @@ namespace Project.Networking.Fusion
                 SessionName = roomName,
                 Scene = sceneInfo,
                 SceneManager = sceneManager,
-
                 IsVisible = true,
                 IsOpen = true,
                 PlayerCount = maxPlayers,
-
-                // Add session props (visible in public list)
                 SessionProperties = new Dictionary<string, SessionProperty>
                 {
                     { "map", mapBuildIndex }
@@ -94,13 +114,13 @@ namespace Project.Networking.Fusion
 
         public async Task Join(string roomName)
         {
-            var sceneManager = GetSceneManager();
+            activeSessionName = roomName;
 
             var args = new StartGameArgs
             {
                 GameMode = GameMode.Client,
                 SessionName = roomName,
-                SceneManager = sceneManager
+                SceneManager = GetSceneManager()
             };
 
             var result = await runner.StartGame(args);
@@ -111,11 +131,10 @@ namespace Project.Networking.Fusion
         private NetworkSceneManagerDefault GetSceneManager()
         {
             var sm = GetComponent<NetworkSceneManagerDefault>();
-            if (sm == null) sm = gameObject.AddComponent<NetworkSceneManagerDefault>();
+            if (sm == null)
+                sm = gameObject.AddComponent<NetworkSceneManagerDefault>();
             return sm;
         }
-
-        // ===== Callbacks =====
 
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
@@ -149,27 +168,16 @@ namespace Project.Networking.Fusion
             SceneManager.LoadScene(menuSceneBuildIndex);
         }
 
-        private bool ShouldReturnToMenu(ShutdownReason shutdownReason)
+        private void CancelReconnect()
         {
-            if (hostMigrationInProgress)
-                return false;
-
-            if (shutdownReason == ShutdownReason.HostMigration)
-                return false;
-
-            return true;
-        }
-
-        private void CancelPendingDisconnectReturn()
-        {
-            if (pendingDisconnectCoroutine == null)
+            if (reconnectCoroutine == null)
                 return;
 
-            StopCoroutine(pendingDisconnectCoroutine);
-            pendingDisconnectCoroutine = null;
+            StopCoroutine(reconnectCoroutine);
+            reconnectCoroutine = null;
         }
 
-        private void BeginPendingDisconnectReturn()
+        private void BeginReconnectFallback()
         {
             if (!enableHostMigration)
             {
@@ -177,56 +185,64 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            CancelPendingDisconnectReturn();
-            pendingDisconnectCoroutine = StartCoroutine(DisconnectGraceRoutine());
+            if (string.IsNullOrWhiteSpace(activeSessionName))
+            {
+                ReturnToMenu();
+                return;
+            }
+
+            if (reconnectCoroutine != null)
+                return;
+
+            reconnectCoroutine = StartCoroutine(ReconnectRoutine());
         }
 
-        private System.Collections.IEnumerator DisconnectGraceRoutine()
+        private IEnumerator ReconnectRoutine()
         {
             yield return new WaitForSeconds(hostMigrationGraceSeconds);
 
-            pendingDisconnectCoroutine = null;
+            const int maxAttempts = 20;
+            for (int attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                if (hostMigrationInProgress)
+                    yield break;
 
-            if (!hostMigrationInProgress)
-                ReturnToMenu();
+                RebuildRunner(ShutdownReason.Ok);
+
+                var startTask = runner.StartGame(new StartGameArgs
+                {
+                    GameMode = GameMode.Client,
+                    SessionName = activeSessionName,
+                    SceneManager = GetSceneManager()
+                });
+
+                while (!startTask.IsCompleted)
+                    yield return null;
+
+                if (startTask.Result.Ok)
+                {
+                    reconnectCoroutine = null;
+                    yield break;
+                }
+
+                yield return new WaitForSeconds(0.2f);
+            }
+
+            reconnectCoroutine = null;
+            ReturnToMenu();
         }
 
         private async void ResumeFromHostMigration(HostMigrationToken hostMigrationToken)
         {
-            if (!enableHostMigration)
+            if (!enableHostMigration || hostMigrationToken == null)
             {
                 hostMigrationInProgress = false;
-                ReturnToMenu();
+                BeginReconnectFallback();
                 return;
             }
 
-            if (hostMigrationToken == null)
-            {
-                hostMigrationInProgress = false;
-                ReturnToMenu();
-                return;
-            }
-
-            CancelPendingDisconnectReturn();
-            Debug.Log("[FusionLauncher] Host migration started. Rebuilding runner...");
-
-            var oldRunner = runner;
-
-            if (oldRunner != null)
-            {
-                oldRunner.RemoveCallbacks(this);
-                if (inputProvider != null)
-                    oldRunner.RemoveCallbacks(inputProvider);
-
-                oldRunner.Shutdown(destroyGameObject: false, shutdownReason: ShutdownReason.HostMigration);
-                Destroy(oldRunner);
-            }
-
-            runner = gameObject.AddComponent<NetworkRunner>();
-            ConfigureRunner();
-
-            if (spawner != null)
-                spawner.ResetSpawnerState();
+            CancelReconnect();
+            RebuildRunner(ShutdownReason.HostMigration);
 
             var result = await runner.StartGame(new StartGameArgs
             {
@@ -240,25 +256,23 @@ namespace Project.Networking.Fusion
 
             if (!result.Ok)
             {
-                Debug.LogError($"[FusionLauncher] Host migration resume failed: {result.ShutdownReason}");
-                ReturnToMenu();
+                Debug.LogWarning($"[FusionLauncher] Host migration resume failed: {result.ShutdownReason}. Falling back to reconnect.");
+                BeginReconnectFallback();
             }
         }
 
         private void OnHostMigrationResume(NetworkRunner resumedRunner)
         {
-            Debug.Log("[FusionLauncher] Host migration resume completed.");
+            CancelReconnect();
 
             if (spawner == null || resumedRunner == null || !resumedRunner.IsServer)
                 return;
 
             spawner.RefreshSpawnPoints();
-
             foreach (var player in resumedRunner.ActivePlayers)
                 spawner.SpawnPlayerFor(player);
         }
 
-        // Unused
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
         {
             if (!runner.IsServer)
@@ -271,12 +285,12 @@ namespace Project.Networking.Fusion
 
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
-            if (!ShouldReturnToMenu(shutdownReason))
+            if (hostMigrationInProgress || shutdownReason == ShutdownReason.HostMigration)
                 return;
 
             if (enableHostMigration && runner != null && !runner.IsServer)
             {
-                BeginPendingDisconnectReturn();
+                BeginReconnectFallback();
                 return;
             }
 
@@ -285,7 +299,7 @@ namespace Project.Networking.Fusion
 
         public void OnConnectedToServer(NetworkRunner runner)
         {
-            CancelPendingDisconnectReturn();
+            CancelReconnect();
         }
 
         public void OnDisconnectedFromServer(NetworkRunner runner)
@@ -293,7 +307,7 @@ namespace Project.Networking.Fusion
             if (hostMigrationInProgress)
                 return;
 
-            BeginPendingDisconnectReturn();
+            BeginReconnectFallback();
         }
 
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
@@ -303,14 +317,11 @@ namespace Project.Networking.Fusion
 
         public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken)
         {
-            if (!enableHostMigration)
-                return;
-
-            if (hostMigrationInProgress)
+            if (!enableHostMigration || hostMigrationInProgress)
                 return;
 
             hostMigrationInProgress = true;
-            CancelPendingDisconnectReturn();
+            CancelReconnect();
             ResumeFromHostMigration(hostMigrationToken);
         }
 
@@ -325,7 +336,7 @@ namespace Project.Networking.Fusion
             if (hostMigrationInProgress)
                 return;
 
-            BeginPendingDisconnectReturn();
+            BeginReconnectFallback();
         }
 
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }

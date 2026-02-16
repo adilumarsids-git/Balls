@@ -14,6 +14,11 @@ namespace Project.Utils
             return Parser.Parse(json);
         }
 
+        public static string Serialize(object obj)
+        {
+            return Serializer.Serialize(obj);
+        }
+
         private sealed class Parser : IDisposable
         {
             private const string WordBreak = "{}[],:\"";
@@ -89,22 +94,38 @@ namespace Project.Utils
             private IDictionary<string, object> ParseObject()
             {
                 var table = new Dictionary<string, object>();
-                NextChar();
+                NextChar(); // {
+
                 while (true)
                 {
                     EatWhitespace();
                     char c = PeekChar();
                     if (c == '\0')
                         return null;
+
                     if (c == '}')
                     {
                         NextChar();
                         return table;
                     }
 
+                    if (c == ',')
+                    {
+                        NextChar();
+                        continue;
+                    }
+
+                    if (c != '"')
+                        return null;
+
                     string key = ParseString();
+                    if (key == null)
+                        return null;
+
                     EatWhitespace();
-                    NextChar();
+                    if (NextChar() != ':')
+                        return null;
+
                     object value = ParseValue();
                     table[key] = value;
                 }
@@ -113,17 +134,25 @@ namespace Project.Utils
             private IList ParseArray()
             {
                 var array = new List<object>();
-                NextChar();
+                NextChar(); // [
+
                 while (true)
                 {
                     EatWhitespace();
                     char c = PeekChar();
                     if (c == '\0')
                         return null;
+
                     if (c == ']')
                     {
                         NextChar();
                         return array;
+                    }
+
+                    if (c == ',')
+                    {
+                        NextChar();
+                        continue;
                     }
 
                     object value = ParseValue();
@@ -198,6 +227,138 @@ namespace Project.Utils
             private static bool IsWordBreak(char c)
             {
                 return char.IsWhiteSpace(c) || WordBreak.IndexOf(c) != -1;
+            }
+        }
+
+        private sealed class Serializer
+        {
+            private readonly StringBuilder builder = new StringBuilder();
+
+            public static string Serialize(object obj)
+            {
+                var instance = new Serializer();
+                instance.SerializeValue(obj);
+                return instance.builder.ToString();
+            }
+
+            private void SerializeValue(object value)
+            {
+                if (value == null)
+                {
+                    builder.Append("null");
+                    return;
+                }
+
+                if (value is string str)
+                {
+                    SerializeString(str);
+                    return;
+                }
+
+                if (value is bool b)
+                {
+                    builder.Append(b ? "true" : "false");
+                    return;
+                }
+
+                if (value is IDictionary dict)
+                {
+                    SerializeObject(dict);
+                    return;
+                }
+
+                if (value is IEnumerable enumerable && value is not string)
+                {
+                    SerializeArray(enumerable);
+                    return;
+                }
+
+                if (value is char ch)
+                {
+                    SerializeString(ch.ToString());
+                    return;
+                }
+
+                if (value is IFormattable formattable)
+                {
+                    builder.Append(formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture));
+                    return;
+                }
+
+                SerializeString(value.ToString());
+            }
+
+            private void SerializeObject(IDictionary obj)
+            {
+                bool first = true;
+                builder.Append('{');
+                foreach (DictionaryEntry entry in obj)
+                {
+                    if (!first)
+                        builder.Append(',');
+
+                    SerializeString(entry.Key.ToString());
+                    builder.Append(':');
+                    SerializeValue(entry.Value);
+                    first = false;
+                }
+
+                builder.Append('}');
+            }
+
+            private void SerializeArray(IEnumerable array)
+            {
+                bool first = true;
+                builder.Append('[');
+                foreach (var item in array)
+                {
+                    if (!first)
+                        builder.Append(',');
+
+                    SerializeValue(item);
+                    first = false;
+                }
+
+                builder.Append(']');
+            }
+
+            private void SerializeString(string str)
+            {
+                builder.Append('"');
+                foreach (char c in str)
+                {
+                    switch (c)
+                    {
+                        case '"':
+                            builder.Append("\\\"");
+                            break;
+                        case '\\':
+                            builder.Append("\\\\");
+                            break;
+                        case '\b':
+                            builder.Append("\\b");
+                            break;
+                        case '\f':
+                            builder.Append("\\f");
+                            break;
+                        case '\n':
+                            builder.Append("\\n");
+                            break;
+                        case '\r':
+                            builder.Append("\\r");
+                            break;
+                        case '\t':
+                            builder.Append("\\t");
+                            break;
+                        default:
+                            if (c < 32 || c > 126)
+                                builder.Append("\\u" + ((int)c).ToString("x4"));
+                            else
+                                builder.Append(c);
+                            break;
+                    }
+                }
+                builder.Append('"');
             }
         }
     }

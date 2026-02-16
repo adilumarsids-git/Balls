@@ -11,17 +11,30 @@ namespace Project.Networking.Fusion
     {
         [SerializeField] private TopDownMovementConfigSO moveConfig;
         [SerializeField] private GameConfigSO gameConfig;
+
+        [Header("Bump")]
+        [SerializeField] private float minBumpImpactSpeed = 1.25f;
+        [SerializeField] private float bumpExaggeration = 1.35f;
+        [SerializeField] private float bumpDamping = 0.95f;
+        [SerializeField] private float postBumpNoBrakeSeconds = 0.2f;
+
+        [Header("Local Camera")]
+        [SerializeField] private Vector3 cameraLocalOffset = new Vector3(0f, 1.5f, -2f);
+        [SerializeField] private float cameraPitch = 30f;
+        [SerializeField] private float cameraPositionLerp = 10f;
+        [SerializeField] private float cameraRotationLerp = 12f;
+
         [Networked] private NetworkBool AuthorityRequested { get; set; }
 
         private NetworkRigidbody3D nrb;
         private Rigidbody rb;
         private PlayerStats stats;
+        private float noBrakeTimer;
+        private Camera localCamera;
+        private Transform assignedSpawnPoint;
+        private float cameraYaw;
+        private bool cameraInitialized;
 
-        // Burst timers (networked)
-        [Networked] private TickTimer BoostActive { get; set; }
-        [Networked] private TickTimer BoostCooldown { get; set; }
-
-        // Remember last direction for boost when input is tiny
         [Networked] private Vector2 LastMoveDir { get; set; }
         [Networked] public NetworkString<_16> PlayerName { get; private set; }
         [Networked] private float SpeedMul { get; set; } = 1f;
@@ -37,23 +50,19 @@ namespace Project.Networking.Fusion
             rb.useGravity = true;
             if (LastMoveDir == Vector2.zero)
                 LastMoveDir = Vector2.up;
-            if (Object.HasStateAuthority && PlayerName.ToString().Length == 0)
-            {
-                SetPlayerName($"P{Object.InputAuthority.RawEncoded}");
-            }
 
-            // ✅ Critical: in Shared mode, clients must request StateAuthority for their own physics object
+            if (Object.HasStateAuthority && PlayerName.ToString().Length == 0)
+                SetPlayerName($"P{Object.InputAuthority.RawEncoded}");
+
             if (Object.HasInputAuthority && !Object.HasStateAuthority && !AuthorityRequested)
             {
                 AuthorityRequested = true;
                 Object.RequestStateAuthority();
             }
 
-            // Optional debug (remove later)
-            Debug.Log($"Spawned {name} Local={Runner.LocalPlayer} InputAuth={Object.InputAuthority} HasInputAuth={Object.HasInputAuthority} HasStateAuth={Object.HasStateAuthority}");
-
+            if (Object.HasInputAuthority)
+                SetupLocalCamera();
         }
-
 
         public override void FixedUpdateNetwork()
         {
@@ -65,66 +74,208 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            if (moveConfig == null || gameConfig == null) return;
-
-            // Only the peer with StateAuthority should drive physics for this object.
-            // In Shared Mode we will assign StateAuthority = InputAuthority for each player object.
-            if (!Object.HasStateAuthority) return;
+            if (moveConfig == null || gameConfig == null || !Object.HasStateAuthority)
+                return;
 
             if (!GetInput(out NetInput input))
                 input = default;
 
+            if (noBrakeTimer > 0f)
+                noBrakeTimer = Mathf.Max(0f, noBrakeTimer - Runner.DeltaTime);
+
             Vector2 move = input.Move;
-            if (move.sqrMagnitude > 0.0001f)
-                LastMoveDir = move;
+            bool hasMoveInput = move.sqrMagnitude > 0.0001f;
+            Vector2 inputDir = hasMoveInput ? move.normalized : LastMoveDir;
+            if (hasMoveInput)
+                LastMoveDir = inputDir;
 
             float speedBonus = stats != null ? stats.SpeedBonus : 0f;
+            float boostMultiplier = input.Boost ? gameConfig.boostMultiplier : 1f;
 
-            bool boostingNow = BoostActive.IsRunning;
-            float multiplier = boostingNow ? gameConfig.boostMultiplier : 1f;
-
-            float targetMax = (moveConfig.maxSpeed + speedBonus) * SpeedMul;
+            float targetSpeed = (moveConfig.baseSpeed + speedBonus) * SpeedMul * boostMultiplier;
+            float targetMax = (moveConfig.maxSpeed + speedBonus) * SpeedMul * boostMultiplier;
             float accel = moveConfig.acceleration * SpeedMul;
 
-            // Current velocity XZ
-            Vector2 v = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            Vector2 planarVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            float planarSpeed = planarVelocity.magnitude;
 
-            // Desired velocity XZ
-            Vector2 desired = move * (moveConfig.baseSpeed + SpeedMul);
-            Vector2 delta = desired - v;
+            // Realistic movement feel: keep some inertia, add traction and lateral friction instead of hard snaps.
+            Vector2 desiredVelocity = hasMoveInput ? inputDir * targetSpeed : Vector2.zero;
+            Vector2 velocityDelta = desiredVelocity - planarVelocity;
 
-            // Accelerate
-            Vector2 force = Vector2.ClampMagnitude(delta * accel, accel);
-            rb.AddForce(new Vector3(force.x, 0f, force.y), ForceMode.Acceleration);
+            // Acceleration scales down as we approach max speed to avoid sudden speed jumps.
+            float speedRatio = targetMax > 0.0001f ? Mathf.Clamp01(planarSpeed / targetMax) : 0f;
+            float accelScale = Mathf.Lerp(1f, 0.35f, speedRatio);
+            Vector2 accelForce = Vector2.ClampMagnitude(velocityDelta * accel * accelScale, accel);
+            rb.AddForce(new Vector3(accelForce.x, 0f, accelForce.y), ForceMode.Acceleration);
 
-            // Stop damping
-            if (move.sqrMagnitude < 0.0001f)
+            // Lateral friction: preserves momentum but suppresses unnatural side-sliding.
+            Vector2 heading = planarSpeed > 0.001f ? planarVelocity.normalized : inputDir;
+            Vector2 forwardVel = heading * Vector2.Dot(planarVelocity, heading);
+            Vector2 lateralVel = planarVelocity - forwardVel;
+            float lateralGrip = hasMoveInput ? moveConfig.linearDrag : moveConfig.linearDrag * 1.5f;
+            Vector2 lateralFriction = -lateralVel * lateralGrip;
+            rb.AddForce(new Vector3(lateralFriction.x, 0f, lateralFriction.y), ForceMode.Acceleration);
+
+            // When input is released, blend drag + stop damping for a smooth roll-down.
+            if (!hasMoveInput && noBrakeTimer <= 0f)
             {
-                Vector2 damp = -v * moveConfig.stopDamping;
-                rb.AddForce(new Vector3(damp.x, 0f, damp.y), ForceMode.Acceleration);
+                Vector2 drag = -planarVelocity * moveConfig.linearDrag;
+                Vector2 brake = -planarVelocity * moveConfig.stopDamping;
+                Vector2 stopForce = drag + brake;
+                rb.AddForce(new Vector3(stopForce.x, 0f, stopForce.y), ForceMode.Acceleration);
             }
 
-            // Clamp XZ speed
-            Vector2 v2 = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
-            if (v2.magnitude > targetMax)
+            Vector2 clamped = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            if (clamped.magnitude > targetMax)
             {
-                v2 = v2.normalized * targetMax;
-                rb.linearVelocity = new Vector3(v2.x, rb.linearVelocity.y, v2.y);
+                clamped = clamped.normalized * targetMax;
+                rb.linearVelocity = new Vector3(clamped.x, rb.linearVelocity.y, clamped.y);
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (Object == null || !Object.HasInputAuthority)
+                return;
+
+            if (localCamera == null)
+            {
+                SetupLocalCamera();
+                if (localCamera == null)
+                    return;
             }
 
-            // Handle press-to-burst boost
-            if (input.Boost && !BoostCooldown.IsRunning)
-            {
-                Vector2 dir = move.sqrMagnitude > 0.0001f ? move : LastMoveDir;
-                if (dir.sqrMagnitude > 0.0001f)
-                {
-                    // impulse
-                    rb.AddForce(new Vector3(dir.x, 0f, dir.y) * 6.5f, ForceMode.VelocityChange);
+            if (assignedSpawnPoint == null)
+                assignedSpawnPoint = GetAssignedSpawnPoint();
 
-                    BoostActive = TickTimer.CreateFromSeconds(Runner, gameConfig.boostBurstDuration);
-                    BoostCooldown = TickTimer.CreateFromSeconds(Runner, gameConfig.boostCooldown);
-                }
+            Vector3 offset = cameraLocalOffset;
+            Quaternion yawRotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            Vector3 desiredPos = transform.position + (yawRotation * offset);
+
+            float posT = 1f - Mathf.Exp(-cameraPositionLerp * Time.deltaTime);
+            float rotT = 1f - Mathf.Exp(-cameraRotationLerp * Time.deltaTime);
+
+            Transform camTransform = localCamera.transform;
+            Quaternion desiredRot = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
+
+            if (!cameraInitialized)
+            {
+                camTransform.SetPositionAndRotation(desiredPos, desiredRot);
+                cameraInitialized = true;
+                return;
             }
+
+            camTransform.position = Vector3.Lerp(camTransform.position, desiredPos, posT);
+            camTransform.rotation = Quaternion.Slerp(camTransform.rotation, desiredRot, rotT);
+        }
+
+        private void SetupLocalCamera()
+        {
+            if (localCamera == null)
+                localCamera = Camera.main != null ? Camera.main : FindObjectOfType<Camera>();
+
+            assignedSpawnPoint = GetAssignedSpawnPoint();
+            if (assignedSpawnPoint != null)
+            {
+                cameraYaw = assignedSpawnPoint.eulerAngles.y;
+            }
+            else
+            {
+                Vector3 forwardOnPlane = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+                if (forwardOnPlane.sqrMagnitude > 0.0001f)
+                    cameraYaw = Quaternion.LookRotation(forwardOnPlane, Vector3.up).eulerAngles.y;
+            }
+
+            cameraInitialized = false;
+        }
+
+        private Transform GetAssignedSpawnPoint()
+        {
+            var spawnParent = GameObject.Find("SpawnPoints");
+            if (spawnParent == null)
+                return null;
+
+            var points = spawnParent.GetComponentsInChildren<Transform>(true);
+            int usable = points.Length - 1;
+            if (usable <= 0)
+                return null;
+
+            int playerKey = Object != null ? Mathf.Abs(Object.InputAuthority.RawEncoded) : 0;
+            int index = (playerKey % usable) + 1;
+            return points[index];
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            if (!Object.HasStateAuthority || rb == null)
+                return;
+
+            if (collision.rigidbody == null)
+                return;
+
+            if (collision.gameObject.GetComponentInParent<Project.Gameplay.Player.PlayerTag>() == null)
+                return;
+
+            if (collision.contactCount == 0)
+                return;
+
+            var otherController = collision.rigidbody.GetComponentInParent<NetworkPlayerController>();
+            if (otherController == null || otherController.Object == null)
+                return;
+
+            // Single deterministic resolver to avoid double-applying when both sides receive collision callbacks.
+            if (Object.InputAuthority.RawEncoded >= otherController.Object.InputAuthority.RawEncoded)
+                return;
+
+            Vector3 contactNormal = collision.contacts[0].normal;
+            Vector2 away = new Vector2(contactNormal.x, contactNormal.z);
+            if (away.sqrMagnitude < 0.0001f)
+                return;
+
+            away.Normalize();
+
+            Vector2 myV = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            Vector2 otherV = new Vector2(collision.rigidbody.linearVelocity.x, collision.rigidbody.linearVelocity.z);
+
+            float relImpact = Mathf.Abs(Vector2.Dot(myV - otherV, away));
+            if (relImpact < minBumpImpactSpeed)
+                return;
+
+            float myMass = Mathf.Max(0.1f, rb.mass);
+            float otherMass = Mathf.Max(0.1f, collision.rigidbody.mass);
+
+            // Apply equal/opposite impulse split by mass.
+            float reducedMass = (myMass * otherMass) / (myMass + otherMass);
+            float impulse = relImpact * reducedMass * bumpExaggeration;
+
+            Vector2 myDelta = away * (impulse / myMass);
+            Vector2 otherDelta = -away * (impulse / otherMass);
+
+            ApplyBumpDelta(myDelta);
+
+            otherController.RPC_ApplyBumpToAuthority(otherDelta);
+        }
+
+
+        private void ApplyBumpDelta(Vector2 planarDelta)
+        {
+            if (rb == null)
+                return;
+
+            Vector2 planar = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
+            planar += planarDelta;
+            planar *= bumpDamping;
+
+            rb.linearVelocity = new Vector3(planar.x, rb.linearVelocity.y, planar.y);
+            noBrakeTimer = Mathf.Max(noBrakeTimer, postBumpNoBrakeSeconds);
+            rb.WakeUp();
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_ApplyBumpToAuthority(Vector2 planarDelta)
+        {
+            ApplyBumpDelta(planarDelta);
         }
 
         public void SetPlayerName(string name)
@@ -134,30 +285,25 @@ namespace Project.Networking.Fusion
             if (string.IsNullOrWhiteSpace(name))
                 name = $"P{Object.InputAuthority.RawEncoded}";
 
-            // Trim to be safe
             name = name.Trim();
             if (name.Length > 16) name = name.Substring(0, 16);
 
             PlayerName = name;
-            gameObject.name = name; // helps editor/hierarchy debugging
+            gameObject.name = name;
         }
 
         public void OnConsumablePickup(float sizeMul, float speedMul, float massMul)
         {
-            // Only StateAuthority should change physics-affecting values
             if (!Object.HasStateAuthority) return;
 
             SizeMul *= sizeMul;
-            SpeedMul = Mathf.Clamp(SpeedMul * speedMul, 0.5f, 3f);
+            SpeedMul = Mathf.Clamp(SpeedMul * speedMul, 0.5f, 4f);
             MassMul *= massMul;
 
-            // Apply locally (StateAuthority simulates)
             transform.localScale *= sizeMul;
 
             if (rb != null)
                 rb.mass *= massMul;
         }
-
-
     }
 }

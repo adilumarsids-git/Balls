@@ -9,16 +9,15 @@ namespace Project.Networking.Fusion
     public class FusionInputProvider : MonoBehaviour, INetworkRunnerCallbacks
     {
         private Vector2 move;
-        private bool boostPressed;
+        private bool boostHeld;
 
         private void Update()
         {
             move = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
             if (move.sqrMagnitude > 1f) move.Normalize();
 
-            // press-to-burst (one press)
-            if (Input.GetKeyDown(KeyCode.Space))
-                boostPressed = true;
+            // Hold-to-boost turbo
+            boostHeld = Input.GetKey(KeyCode.Space);
         }
 
         public void OnInput(NetworkRunner runner, NetworkInput input)
@@ -26,11 +25,9 @@ namespace Project.Networking.Fusion
             input.Set(new NetInput
             {
                 Move = move,
-                Boost = boostPressed
+                Boost = boostHeld
             });
 
-            // Consume the press so it’s a true "press-to-burst"
-            boostPressed = false;
         }
 
         // Unused callbacks (keep empty)

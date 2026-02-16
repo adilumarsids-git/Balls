@@ -41,7 +41,7 @@ namespace Project.Game.Consumables
             var playerObj = playerTag.NetObj;
             if (playerObj == null) return;
 
-            // In Shared, player is simulated on its StateAuthority peer
+            // In Host mode, only the server simulates authoritative collisions.
             if (!playerObj.HasStateAuthority) return;
 
             var flow = NetworkGameFlowManager.Instance;
@@ -58,8 +58,8 @@ namespace Project.Game.Consumables
             float speedMultiplier = 1f + config.speedAdd;
             float massMultiplier = 1f + config.massAdd;
 
-            // Report pickup to master (single source of truth)
-            flow.RPC_ReportConsumablePickup(Object, playerObj, sizeMultiplier, speedMultiplier, massMultiplier);
+            // Report pickup to server (single source of truth)
+            flow.ReportConsumablePickup(Object, playerObj, sizeMultiplier, speedMultiplier, massMultiplier);
         }
 
         public void SetActiveState(bool active)

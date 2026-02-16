@@ -1,4 +1,5 @@
-﻿using Fusion;
+﻿using System.Collections.Generic;
+using Fusion;
 using UnityEngine;
 
 namespace Project.Networking.Fusion
@@ -10,9 +11,7 @@ namespace Project.Networking.Fusion
 
         private NetworkRunner runner;
         private Transform[] spawnPoints;
-
-        // Keep track so we don't spawn twice for local player
-        private NetworkObject localPlayerObject;
+        private readonly Dictionary<PlayerRef, NetworkObject> spawnedPlayers = new Dictionary<PlayerRef, NetworkObject>();
 
         public void Init(NetworkRunner r) => runner = r;
 
@@ -31,15 +30,6 @@ namespace Project.Networking.Fusion
             Debug.Log($"Found {spawnPoints.Length - 1} spawn points");
         }
 
-        public void EnsureLocalPlayerSpawned()
-        {
-            if (runner == null || runner.LocalPlayer == PlayerRef.None) return;
-            if (localPlayerObject != null && localPlayerObject.gameObject != null)
-                return;
-
-            SpawnPlayerFor(runner.LocalPlayer);
-        }
-
         public void SpawnPlayerFor(PlayerRef player)
         {
             if (runner == null)
@@ -48,11 +38,13 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            // If this is local player and already spawned, do nothing
-            if (player == runner.LocalPlayer && localPlayerObject != null)
+            if (!runner.IsServer)
                 return;
 
-            // SpawnPoints might not exist yet (scene still loading) → try refresh
+            if (spawnedPlayers.TryGetValue(player, out var existing) && existing != null)
+                return;
+
+            // SpawnPoints might not exist yet (scene still loading) -> try refresh
             if (spawnPoints == null || spawnPoints.Length <= 1)
                 RefreshSpawnPoints();
 
@@ -67,23 +59,31 @@ namespace Project.Networking.Fusion
             Transform t = spawnPoints[index];
 
             var obj = runner.Spawn(playerPrefab, t.position, t.rotation, player);
-
-            if (player == runner.LocalPlayer)
-                localPlayerObject = obj;
+            spawnedPlayers[player] = obj;
 
             var ctrl = obj.GetComponent<NetworkPlayerController>();
             if (ctrl != null)
-            {
-                // StateAuthority for local player is local in Shared Mode (since we spawned it)
-                ctrl.SetPlayerName(Project.Core.LocalProfile.GetName());
-            }
+                ctrl.SetPlayerName($"P{player.RawEncoded}");
 
-            // Optional: register with match manager (fine for now)
             var match = FindObjectOfType<NetworkMatchManager>();
             if (match != null && obj != null)
                 match.RegisterPlayer(obj);
 
-            Debug.Log($"[Spawner] Local={runner.LocalPlayer} spawned for={player} obj.InputAuthority={obj.InputAuthority}");
+            Debug.Log($"[Spawner] Server spawned for={player} obj.InputAuthority={obj.InputAuthority}");
+        }
+
+        public void DespawnPlayerFor(PlayerRef player)
+        {
+            if (runner == null || !runner.IsServer)
+                return;
+
+            if (!spawnedPlayers.TryGetValue(player, out var playerObject))
+                return;
+
+            spawnedPlayers.Remove(player);
+
+            if (playerObject != null)
+                runner.Despawn(playerObject);
         }
     }
 }

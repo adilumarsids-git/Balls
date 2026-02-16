@@ -11,9 +11,8 @@ namespace Project.Networking.Fusion
     public class FusionLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         [Header("Defaults")]
-        [SerializeField] private GameMode gameMode = GameMode.Shared;
         [SerializeField] private int gameplaySceneBuildIndex = 4; // Map A default
-        [SerializeField] private SessionLobby lobby = SessionLobby.Shared; // Public lobby list
+        [SerializeField] private SessionLobby lobby = SessionLobby.ClientServer; // Public lobby list
         [SerializeField] private int menuSceneBuildIndex = 2; // 02_Menu
 
         private NetworkRunner runner;
@@ -53,7 +52,7 @@ namespace Project.Networking.Fusion
 
             var args = new StartGameArgs
             {
-                GameMode = gameMode,
+                GameMode = GameMode.Host,
                 SessionName = roomName,
                 Scene = sceneInfo,
                 SceneManager = sceneManager,
@@ -80,7 +79,7 @@ namespace Project.Networking.Fusion
 
             var args = new StartGameArgs
             {
-                GameMode = gameMode,
+                GameMode = GameMode.Client,
                 SessionName = roomName,
                 SceneManager = sceneManager
             };
@@ -101,15 +100,20 @@ namespace Project.Networking.Fusion
 
         public void OnPlayerJoined(NetworkRunner runner, PlayerRef player)
         {
-            // Shared Mode: each peer spawns its own player object
-            if (player == runner.LocalPlayer)
-                spawner.SpawnPlayerFor(player);
+            if (!runner.IsServer)
+                return;
+
+            spawner.SpawnPlayerFor(player);
         }
 
         public void OnSceneLoadDone(NetworkRunner runner)
         {
             spawner.RefreshSpawnPoints();
-            spawner.EnsureLocalPlayerSpawned();
+            if (!runner.IsServer)
+                return;
+
+            foreach (var player in runner.ActivePlayers)
+                spawner.SpawnPlayerFor(player);
         }
 
         public void OnSessionListUpdated(NetworkRunner runner, List<SessionInfo> sessionList)
@@ -128,7 +132,13 @@ namespace Project.Networking.Fusion
 
 
         // Unused
-        public void OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
+        public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+        {
+            if (!runner.IsServer)
+                return;
+
+            spawner.DespawnPlayerFor(player);
+        }
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {

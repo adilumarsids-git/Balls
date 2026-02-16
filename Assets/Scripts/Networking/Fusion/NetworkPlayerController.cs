@@ -19,9 +19,8 @@ namespace Project.Networking.Fusion
         [SerializeField] private float postBumpNoBrakeSeconds = 0.2f;
 
         [Header("Local Camera")]
-        [SerializeField] private float cameraDistance = 9f;
-        [SerializeField] private float cameraHeight = 5f;
-        [SerializeField] private float cameraLookHeight = 1.2f;
+        [SerializeField] private Vector3 cameraLocalOffset = new Vector3(0f, 1.5f, -2f);
+        [SerializeField] private float cameraPitch = 30f;
         [SerializeField] private float cameraPositionLerp = 10f;
         [SerializeField] private float cameraRotationLerp = 12f;
 
@@ -32,7 +31,8 @@ namespace Project.Networking.Fusion
         private PlayerStats stats;
         private float noBrakeTimer;
         private Camera localCamera;
-        private Vector3 cameraForward;
+        private Transform assignedSpawnPoint;
+        private float cameraYaw;
         private bool cameraInitialized;
 
         [Networked] private Vector2 LastMoveDir { get; set; }
@@ -146,24 +146,27 @@ namespace Project.Networking.Fusion
                     return;
             }
 
-            Vector3 focus = transform.position + Vector3.up * cameraLookHeight;
-            Vector3 desiredPos = focus - cameraForward * cameraDistance + Vector3.up * (cameraHeight - cameraLookHeight);
+            if (assignedSpawnPoint == null)
+                assignedSpawnPoint = GetAssignedSpawnPoint();
+
+            Vector3 offset = cameraLocalOffset;
+            Quaternion yawRotation = Quaternion.Euler(0f, cameraYaw, 0f);
+            Vector3 desiredPos = transform.position + (yawRotation * offset);
 
             float posT = 1f - Mathf.Exp(-cameraPositionLerp * Time.deltaTime);
             float rotT = 1f - Mathf.Exp(-cameraRotationLerp * Time.deltaTime);
 
             Transform camTransform = localCamera.transform;
+            Quaternion desiredRot = Quaternion.Euler(cameraPitch, cameraYaw, 0f);
+
             if (!cameraInitialized)
             {
-                camTransform.position = desiredPos;
-                camTransform.rotation = Quaternion.LookRotation((focus - desiredPos).normalized, Vector3.up);
+                camTransform.SetPositionAndRotation(desiredPos, desiredRot);
                 cameraInitialized = true;
                 return;
             }
 
             camTransform.position = Vector3.Lerp(camTransform.position, desiredPos, posT);
-
-            Quaternion desiredRot = Quaternion.LookRotation((focus - camTransform.position).normalized, Vector3.up);
             camTransform.rotation = Quaternion.Slerp(camTransform.rotation, desiredRot, rotT);
         }
 
@@ -172,35 +175,35 @@ namespace Project.Networking.Fusion
             if (localCamera == null)
                 localCamera = Camera.main != null ? Camera.main : FindObjectOfType<Camera>();
 
-            cameraForward = ResolveSpawnForward();
+            assignedSpawnPoint = GetAssignedSpawnPoint();
+            if (assignedSpawnPoint != null)
+            {
+                cameraYaw = assignedSpawnPoint.eulerAngles.y;
+            }
+            else
+            {
+                Vector3 forwardOnPlane = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+                if (forwardOnPlane.sqrMagnitude > 0.0001f)
+                    cameraYaw = Quaternion.LookRotation(forwardOnPlane, Vector3.up).eulerAngles.y;
+            }
+
             cameraInitialized = false;
         }
 
-        private Vector3 ResolveSpawnForward()
+        private Transform GetAssignedSpawnPoint()
         {
             var spawnParent = GameObject.Find("SpawnPoints");
-            if (spawnParent != null)
-            {
-                var points = spawnParent.GetComponentsInChildren<Transform>(true);
-                int usable = points.Length - 1;
-                if (usable > 0)
-                {
-                    int playerKey = Object != null ? Mathf.Abs(Object.InputAuthority.RawEncoded) : 0;
-                    int index = (playerKey % usable) + 1;
-                    Transform assignedSpawn = points[index];
+            if (spawnParent == null)
+                return null;
 
-                    Vector3 spawnForward = Vector3.ProjectOnPlane(assignedSpawn.forward, Vector3.up);
-                    if (spawnForward.sqrMagnitude > 0.0001f)
-                        return spawnForward.normalized;
-                }
+            var points = spawnParent.GetComponentsInChildren<Transform>(true);
+            int usable = points.Length - 1;
+            if (usable <= 0)
+                return null;
 
-                Vector3 toCenter = Vector3.ProjectOnPlane(spawnParent.transform.position - transform.position, Vector3.up);
-                if (toCenter.sqrMagnitude > 0.0001f)
-                    return toCenter.normalized;
-            }
-
-            Vector3 forwardOnPlane = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
-            return forwardOnPlane.sqrMagnitude > 0.0001f ? forwardOnPlane.normalized : Vector3.forward;
+            int playerKey = Object != null ? Mathf.Abs(Object.InputAuthority.RawEncoded) : 0;
+            int index = (playerKey % usable) + 1;
+            return points[index];
         }
 
         private void OnCollisionEnter(Collision collision)

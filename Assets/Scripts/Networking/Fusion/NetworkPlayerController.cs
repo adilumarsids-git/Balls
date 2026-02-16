@@ -22,8 +22,6 @@ namespace Project.Networking.Fusion
         [SerializeField] private float cameraPositionLerp = 10f;
         [SerializeField] private float cameraRotationLerp = 12f;
 
-        [Networked] private NetworkBool AuthorityRequested { get; set; }
-
         private NetworkRigidbody3D nrb;
         private Rigidbody rb;
         private PlayerStats stats;
@@ -52,11 +50,6 @@ namespace Project.Networking.Fusion
             if (Object.HasStateAuthority && PlayerName.ToString().Length == 0)
                 SetPlayerName($"P{Object.InputAuthority.RawEncoded}");
 
-            if (Object.HasInputAuthority && !Object.HasStateAuthority && !AuthorityRequested)
-            {
-                AuthorityRequested = true;
-                Object.RequestStateAuthority();
-            }
 
             if (Object.HasInputAuthority)
                 SetupLocalCamera();
@@ -75,8 +68,9 @@ namespace Project.Networking.Fusion
             if (moveConfig == null || gameConfig == null || !Object.HasStateAuthority)
                 return;
 
-            if (!GetInput(out NetInput input))
-                input = default;
+            NetInput input = default;
+            if (!GetInput(out input))
+                Runner.TryGetInputForPlayer(Object.InputAuthority, out input);
 
             if (noBrakeTimer > 0f)
                 noBrakeTimer = Mathf.Max(0f, noBrakeTimer - Runner.DeltaTime);

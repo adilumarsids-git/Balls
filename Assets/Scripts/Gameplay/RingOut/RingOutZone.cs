@@ -16,8 +16,7 @@ namespace Project.Gameplay.RingOut
             var netObj = tag.NetObj != null ? tag.NetObj : tag.GetComponent<NetworkObject>();
             if (netObj == null) return;
 
-            // ✅ CRITICAL: Only the peer that simulates this player (StateAuthority)
-            // should report the ringout, otherwise master won’t see it for other players.
+            // Host/server is the only StateAuthority in Host mode, so ringout is authoritative.
             if (!netObj.HasStateAuthority) return;
 
             var flow = NetworkGameFlowManager.Instance;
@@ -26,7 +25,7 @@ namespace Project.Gameplay.RingOut
 
 
             Debug.Log($"[RingOut] Local detected fall: {netObj.name} | InputAuth={netObj.InputAuthority} | StateAuth={netObj.StateAuthority}");
-            flow.RPC_ReportRingOut(netObj);
+            flow.ReportRingOut(netObj);
         }
     }
 }

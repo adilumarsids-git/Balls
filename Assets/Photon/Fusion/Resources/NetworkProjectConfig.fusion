@@ -12,10 +12,10 @@
     "InvokeRenderInBatchMode": true,
     "NetworkIdIsObjectName": false,
     "HideNetworkObjectInactivityGuard": false,
-    "AllowClientServerModesInWebGL": false,
+    "AllowClientServerModesInWebGL": true,
     "ClientsRecordFrameAndPacketTimingTraces": false,
     "Simulation": {
-        "InputDataWordCount": 0,
+        "InputDataWordCount": 3,
         "ReplicationFeatures": 1,
         "InputTransferMode": 0,
         "SimulationUpdateTimeMode": 0,
@@ -36,8 +36,8 @@
         "ReliableDataTransferModes": 3
     },
     "HostMigration": {
-        "EnableAutoUpdate": false,
-        "UpdateDelay": 10
+        "EnableAutoUpdate": true,
+        "UpdateDelay": 2
     },
     "EncryptionConfig": {
         "EnableEncryption": false

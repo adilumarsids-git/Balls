@@ -15,7 +15,7 @@ namespace Project.Networking.Fusion
 
     /// <summary>
     /// Scene NetworkObject (place it in each map scene).
-    /// Shared mode: SharedModeMasterClient acts as referee and drives the state machine.
+    /// Server/Host drives the authoritative state machine.
     /// </summary>
     [DisallowMultipleComponent]
     public class NetworkGameFlowManager : NetworkBehaviour
@@ -50,33 +50,21 @@ namespace Project.Networking.Fusion
             Instance = this;
             IsReady = true;
 
-            if (Runner.IsSharedModeMasterClient)
-            {
-                if (!Object.HasStateAuthority)
-                {
-                    Object.RequestStateAuthority();
-                }
-                else
-                {
-                    State = MatchFlowState.WaitingForPlayers;
-                    CurrentPlayers = 0;
-                    CountdownTimer = default;
-                    BackToMenuTimer = default;
-                    WinnerName = default;
-                    ConsumableSpawnTimer = default;
-                }
-            }
+            if (!Runner.IsServer || !Object.HasStateAuthority)
+                return;
+
+            State = MatchFlowState.WaitingForPlayers;
+            CurrentPlayers = 0;
+            CountdownTimer = default;
+            BackToMenuTimer = default;
+            WinnerName = default;
+            ConsumableSpawnTimer = default;
         }
 
         public override void FixedUpdateNetwork()
         {
-            if (Runner.IsSharedModeMasterClient && !Object.HasStateAuthority)
-            {
-                Object.RequestStateAuthority();
-            }
-
-            // One source of truth in Shared Mode
-            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority)
+            // One source of truth on Host/Server
+            if (!Runner.IsServer || !Object.HasStateAuthority)
                 return;
 
             // Always refresh player count while not shutdown
@@ -133,7 +121,7 @@ namespace Project.Networking.Fusion
 
         private void EnsureConsumableSpawned()
         {
-            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority)
+            if (!Runner.IsServer || !Object.HasStateAuthority)
                 return;
 
             if (activeConsumable == null)
@@ -177,14 +165,14 @@ namespace Project.Networking.Fusion
         }
 
         /// <summary>
-        /// Call this from RingOutZone (MASTER ONLY) when a player is eliminated.
+        /// Call this from RingOutZone (SERVER ONLY) when a player is eliminated.
         /// This will disable eliminated players and decide winner when 1 remains.
         /// </summary>
         public void NotifyEliminated(NetworkObject playerObj)
         {
             Debug.Log($"[Flow] NotifyEliminated called for {playerObj.name}");
 
-            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority) return;
+            if (!Runner.IsServer || !Object.HasStateAuthority) return;
             if (State != MatchFlowState.Playing) return;
             if (playerObj == null) return;
 
@@ -274,7 +262,7 @@ namespace Project.Networking.Fusion
         // RPCs
         // =========================
 
-        [Rpc(RpcSources.All, RpcTargets.All)]
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_DisablePlayer(NetworkObject obj)
         {
             if (obj == null) return;
@@ -293,13 +281,13 @@ namespace Project.Networking.Fusion
 
         }
 
-        [Rpc(RpcSources.All, RpcTargets.All)]
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_AnnounceWinner(NetworkString<_32> winner)
         {
             Debug.Log($"Winner: {winner}");
         }
 
-        [Rpc(RpcSources.All, RpcTargets.All)]
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_BackToMenu(int menuBuildIndex)
         {
             // Cleanly exit the session on each client
@@ -310,13 +298,15 @@ namespace Project.Networking.Fusion
             SceneManager.LoadScene(menuBuildIndex);
         }
 
-        [Rpc(RpcSources.All, RpcTargets.All)]
-        public void RPC_ReportRingOut(NetworkObject playerObj)
+        public void ReportRingOut(NetworkObject playerObj)
         {
-            // Only master processes ringouts
-            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority) return;
+            if (!Runner.IsServer || !Object.HasStateAuthority)
+                return;
 
-            Debug.Log($"[Flow] Master received ringout for {playerObj.name}");
+            if (playerObj == null)
+                return;
+
+            Debug.Log($"[Flow] Server received ringout for {playerObj.name}");
             NotifyEliminated(playerObj);
         }
 
@@ -332,10 +322,9 @@ namespace Project.Networking.Fusion
             if (Instance == this) Instance = null;
         }
 
-        [Rpc(RpcSources.All, RpcTargets.All)]
-        public void RPC_ReportConsumablePickup(NetworkObject consumableObj, NetworkObject playerObj, float sizeMul, float speedMul, float massMul)
+        public void ReportConsumablePickup(NetworkObject consumableObj, NetworkObject playerObj, float sizeMul, float speedMul, float massMul)
         {
-            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority) return; // master decides
+            if (!Runner.IsServer || !Object.HasStateAuthority) return; // server decides
             if (State != MatchFlowState.Playing) return;
             if (consumableObj == null || playerObj == null) return;
 
@@ -343,10 +332,9 @@ namespace Project.Networking.Fusion
             var cons = consumableObj.GetComponent<Project.Game.Consumables.NetworkConsumable>();
             if (cons == null) return;
 
-            // Use a master-only RPC to apply effects and respawn
             RPC_ApplyConsumable(consumableObj, playerObj, sizeMul, speedMul, massMul);
         }
-        [Rpc(RpcSources.All, RpcTargets.All)]
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_ApplyConsumable(NetworkObject consumableObj, NetworkObject playerObj, float sizeMul, float speedMul, float massMul)
         {
             if (consumableObj == null || playerObj == null) return;
@@ -362,20 +350,20 @@ namespace Project.Networking.Fusion
             if (ctrl != null)
                 ctrl.OnConsumablePickup(sizeMul, speedMul, massMul);
 
-            // Master schedules respawn by sending another RPC after delay (simple approach)
-            if (Runner != null && Runner.IsSharedModeMasterClient)
+            // Server schedules respawn by sending another RPC after delay (simple approach)
+            if (Runner != null && Runner.IsServer)
                 StartCoroutine(RespawnConsumableAfter(consumableObj, consumableRespawnSeconds));
         }
         private System.Collections.IEnumerator RespawnConsumableAfter(NetworkObject obj, float delay)
         {
             yield return new WaitForSeconds(delay);
 
-            // Master chooses new position then broadcasts
+            // Server chooses new position then broadcasts
             Vector3 pos = GetRandomConsumablePosition();
             RPC_RespawnConsumable(obj, pos);
         }
 
-        [Rpc(RpcSources.All, RpcTargets.All)]
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
         private void RPC_RespawnConsumable(NetworkObject obj, Vector3 pos)
         {
             if (obj == null) return;

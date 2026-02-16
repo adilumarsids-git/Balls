@@ -115,12 +115,13 @@ I checked the project scenes and found these important items:
 
 - `00_Bootstrap` already contains `NetworkRunner`, `FusionLauncher`, `FusionInputProvider`, `PlayerSpawner`, and `NetworkSceneManagerDefault` on `NetworkBootstrap`.
 - `10_Map_Island_A` and `11_Map_Island_B` both contain a correctly named `SpawnPoints` object.
+- For `NetworkGameFlowManager` and `NetworkMatchManager` scene `NetworkObject` components, uncheck **Is Master Client Object** for Host/Server topology.
 - Both maps contain many misspelled `ConsumeableSpawnPoints` objects and one correctly spelled `ConsumableSpawnPoints` object.
   - Current code only uses `ConsumableSpawnPoints` (correct spelling), so keep at least one correctly named object.
   - You can safely remove/rename the misspelled duplicates to avoid confusion.
 - `NetworkProjectConfig.fusion` must have:
   - For WebGL builds hosting/joining in Host/Server, `AllowClientServerModesInWebGL` must be `true` (otherwise host start fails with `IncompatibleConfiguration`).
-  - `Simulation.InputDataWordCount` set for your input struct (this repo now uses `3` for `Vector2 + Boost`).
+  - `Simulation.InputDataWordCount` set for your input struct (this repo now uses `4` for `Vector2 + Boost` (safe padded word count)).
   - `HostMigration.EnableAutoUpdate = true` and a low `UpdateDelay` (this repo now uses `2`).
 
 ---

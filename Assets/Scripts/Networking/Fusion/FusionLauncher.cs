@@ -17,7 +17,7 @@ namespace Project.Networking.Fusion
 
         [Header("Host Migration")]
         [SerializeField] private bool enableHostMigration = true;
-        [SerializeField] private float hostMigrationGraceSeconds = 6f;
+        [SerializeField] private float hostMigrationGraceSeconds = 1f;
 
         private NetworkRunner runner;
         private PlayerSpawner spawner;
@@ -271,8 +271,16 @@ namespace Project.Networking.Fusion
 
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
-            if (ShouldReturnToMenu(shutdownReason))
-                ReturnToMenu();
+            if (!ShouldReturnToMenu(shutdownReason))
+                return;
+
+            if (enableHostMigration && runner != null && !runner.IsServer)
+            {
+                BeginPendingDisconnectReturn();
+                return;
+            }
+
+            ReturnToMenu();
         }
 
         public void OnConnectedToServer(NetworkRunner runner)

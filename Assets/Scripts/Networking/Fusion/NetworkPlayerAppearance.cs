@@ -1,6 +1,5 @@
 using Fusion;
 using UnityEngine;
-using Project.Core;
 using Project.Wallet;
 
 namespace Project.Networking.Fusion
@@ -12,9 +11,12 @@ namespace Project.Networking.Fusion
         [SerializeField] private Renderer targetRenderer;
 
         [Networked]
-        private int ColorIndex { get; set; }
+        private NetworkString<_64> SelectedNftId { get; set; }
 
-        private int lastAppliedColorIndex = -1;
+        [Networked]
+        private NetworkString<_64> SelectedNftMint { get; set; }
+
+        private string lastAppliedNftId;
 
         public override void Spawned()
         {
@@ -22,17 +24,27 @@ namespace Project.Networking.Fusion
                 targetRenderer = GetComponentInChildren<Renderer>();
 
             if (Object.HasStateAuthority)
-                ColorIndex = WalletProfile.SelectedColorIndex;
+            {
+                var session = WalletSession.Instance ?? WalletSession.FindOrCreate();
+                var skinId = session != null ? session.SelectedNft?.SkinId : null;
+                var mint = session != null ? session.SelectedNft?.Mint : null;
+                SelectedNftId = string.IsNullOrWhiteSpace(skinId) ? string.Empty : skinId;
+                SelectedNftMint = string.IsNullOrWhiteSpace(mint) ? string.Empty : mint;
+            }
 
-            ApplyColor(ColorIndex);
+            ApplyAppearance(SelectedNftId.ToString());
         }
 
-        private void ApplyColor(int index)
+        private void ApplyAppearance(string skinId)
         {
             if (targetRenderer == null || colorCatalog == null)
                 return;
 
             var colors = colorCatalog.Colors;
+            int index = 0;
+            if (!string.IsNullOrWhiteSpace(skinId))
+                colorCatalog.TryGetIndexById(skinId, out index);
+
             if (index < 0 || index >= colors.Count)
                 index = 0;
 
@@ -43,13 +55,24 @@ namespace Project.Networking.Fusion
             if (targetRenderer.material != null)
                 targetRenderer.material.color = entry.color;
 
-            lastAppliedColorIndex = index;
+            lastAppliedNftId = skinId;
+        }
+
+
+        public string GetLeaderboardNftKey()
+        {
+            var mint = SelectedNftMint.ToString();
+            if (!string.IsNullOrWhiteSpace(mint))
+                return mint;
+
+            return SelectedNftId.ToString();
         }
 
         public override void Render()
         {
-            if (lastAppliedColorIndex != ColorIndex)
-                ApplyColor(ColorIndex);
+            var currentId = SelectedNftId.ToString();
+            if (!string.Equals(lastAppliedNftId, currentId, System.StringComparison.Ordinal))
+                ApplyAppearance(currentId);
         }
     }
 }

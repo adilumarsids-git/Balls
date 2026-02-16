@@ -119,7 +119,8 @@ I checked the project scenes and found these important items:
   - Current code only uses `ConsumableSpawnPoints` (correct spelling), so keep at least one correctly named object.
   - You can safely remove/rename the misspelled duplicates to avoid confusion.
 - `NetworkProjectConfig.fusion` must have:
-  - `Simulation.InputDataWordCount` set for your input struct (this repo now uses `3` for `Vector2 + Boost`),
+  - For WebGL builds hosting/joining in Host/Server, `AllowClientServerModesInWebGL` must be `true` (otherwise host start fails with `IncompatibleConfiguration`).
+  - `Simulation.InputDataWordCount` set for your input struct (this repo now uses `3` for `Vector2 + Boost`).
   - `HostMigration.EnableAutoUpdate = true` and a low `UpdateDelay` (this repo now uses `2`).
 
 ---

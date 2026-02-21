@@ -63,7 +63,8 @@ namespace Project.Networking.Fusion
             }
 
             int usable = spawnPoints.Length - 1; // skip parent
-            int index = (Mathf.Abs(player.RawEncoded) % usable) + 1;
+            int spawnIndex = Mathf.Abs(player.RawEncoded) % usable;
+            int index = spawnIndex + 1;
             Transform t = spawnPoints[index];
 
             var obj = runner.Spawn(playerPrefab, t.position, t.rotation, player);
@@ -76,6 +77,7 @@ namespace Project.Networking.Fusion
             {
                 // StateAuthority for local player is local in Shared Mode (since we spawned it)
                 ctrl.SetPlayerName(Project.Core.LocalProfile.GetName());
+                ctrl.SetSpawnIndex(spawnIndex);
 
             }
 
@@ -84,7 +86,7 @@ namespace Project.Networking.Fusion
             if (match != null && obj != null)
                 match.RegisterPlayer(obj);
 
-            Debug.Log($"[Spawner] Local={runner.LocalPlayer} spawned for={player} obj.InputAuthority={obj.InputAuthority}");
+            Debug.Log($"[Spawner] Local={runner.LocalPlayer} spawned for={player} spawnIndex={spawnIndex} obj.InputAuthority={obj.InputAuthority}");
         }
     }
 }

@@ -28,6 +28,12 @@ public class BallCamera : NetworkBehaviour
 
     public override void Spawned()
     {
+        if (FindObjectOfType<Project.Gameplay.Player.Camera.StaticSpawnCameraManager>() != null)
+        {
+            enabled = false;
+            return;
+        }
+
         if (!Object.HasInputAuthority)
             return;
 

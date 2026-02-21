@@ -7,6 +7,12 @@ public class AttachLocalCameraToBall : NetworkBehaviour
 
     public override void Spawned()
     {
+        if (FindObjectOfType<Project.Gameplay.Player.Camera.StaticSpawnCameraManager>() != null)
+        {
+            enabled = false;
+            return;
+        }
+
         // Only local player attaches the camera
         if (!Object.HasInputAuthority) return;
 

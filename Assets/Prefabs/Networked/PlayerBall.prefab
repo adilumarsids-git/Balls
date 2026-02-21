@@ -298,9 +298,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: '::'
   centerPoint: {fileID: 0}
   centerPointName: CenterPoint
-  distanceBehindBall: 10
-  height: 10
-  lookAtCenter: 1
+  cameraOffset: {x: 0, y: 10, z: -10}
+  offsetRelativeToPlayerYaw: 1
+  useFixedRotation: 0
+  fixedEulerAngles: {x: 45, y: 0, z: 0}
 --- !u!1029 &8512756420842580546
 DefaultAsset:
   m_ObjectHideFlags: 0

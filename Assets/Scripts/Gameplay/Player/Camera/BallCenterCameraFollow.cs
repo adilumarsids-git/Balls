@@ -10,21 +10,24 @@ public class BallCenterCameraFollow : NetworkBehaviour
     [Tooltip("If centerPoint is not assigned, we will try to find a GameObject by this name.")]
     public string centerPointName = "CenterPoint";
 
-    [Header("Local Camera Placement (static after spawn)")]
-    [Tooltip("How far behind the spawned ball the local camera starts (on XZ plane).")]
-    public float distanceBehindBall = 10f;
+    [Header("Static Camera Position")]
+    [Tooltip("Static camera offset from the spawned ball. X=right, Y=up, Z=forward.")]
+    public Vector3 cameraOffset = new Vector3(0f, 10f, -10f);
 
-    [Tooltip("Camera height above the spawned ball.")]
-    public float height = 10f;
+    [Tooltip("If true, rotate the offset by the player's spawn yaw so camera stays behind that player orientation.")]
+    public bool offsetRelativeToPlayerYaw = true;
 
-    [Tooltip("If true, camera looks to center. If false, camera keeps spawn-forward look direction.")]
-    public bool lookAtCenter = true;
+    [Header("Static Camera Rotation")]
+    [Tooltip("If true, uses Fixed Euler Angles. If false, camera looks at center point.")]
+    public bool useFixedRotation = false;
+
+    [Tooltip("Used only when Use Fixed Rotation is enabled.")]
+    public Vector3 fixedEulerAngles = new Vector3(45f, 0f, 0f);
 
     private Transform cam;
 
     public override void Spawned()
     {
-        // Only the local owning player controls a camera.
         if (!Object.HasInputAuthority)
             return;
 
@@ -51,25 +54,36 @@ public class BallCenterCameraFollow : NetworkBehaviour
 
     private void SnapLocalCameraAtSpawn()
     {
-        // Use spawn-forward (already aligned to map center by spawner) and place camera behind it.
-        Vector3 planarForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
-        if (planarForward.sqrMagnitude < 0.0001f)
-            planarForward = Vector3.forward;
+        Vector3 offset = cameraOffset;
+        if (offsetRelativeToPlayerYaw)
+        {
+            float yaw = transform.eulerAngles.y;
+            offset = Quaternion.Euler(0f, yaw, 0f) * cameraOffset;
+        }
 
-        Vector3 camPos = transform.position - planarForward * distanceBehindBall + Vector3.up * height;
-        cam.position = camPos;
+        cam.position = transform.position + offset;
 
-        if (lookAtCenter && centerPoint != null)
+        if (useFixedRotation)
+        {
+            cam.rotation = Quaternion.Euler(fixedEulerAngles);
+            return;
+        }
+
+        if (centerPoint != null)
         {
             Vector3 dir = centerPoint.position - cam.position;
             dir.y = 0f;
             if (dir.sqrMagnitude < 0.0001f)
-                dir = planarForward;
+                dir = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
 
             cam.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
         }
         else
         {
+            Vector3 planarForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+            if (planarForward.sqrMagnitude < 0.0001f)
+                planarForward = Vector3.forward;
+
             cam.rotation = Quaternion.LookRotation(planarForward, Vector3.up);
         }
     }

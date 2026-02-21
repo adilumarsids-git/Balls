@@ -302,6 +302,8 @@ MonoBehaviour:
   offsetRelativeToPlayerYaw: 1
   useFixedRotation: 0
   fixedEulerAngles: {x: 45, y: 0, z: 0}
+  forceLookAtBall: 1
+  lookBelowBall: 0.5
 --- !u!1029 &8512756420842580546
 DefaultAsset:
   m_ObjectHideFlags: 0

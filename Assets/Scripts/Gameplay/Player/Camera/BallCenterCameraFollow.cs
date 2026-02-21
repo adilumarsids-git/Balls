@@ -24,6 +24,14 @@ public class BallCenterCameraFollow : NetworkBehaviour
     [Tooltip("Used only when Use Fixed Rotation is enabled.")]
     public Vector3 fixedEulerAngles = new Vector3(45f, 0f, 0f);
 
+
+    [Header("Aim Assist")]
+    [Tooltip("Recommended: force camera to look at the local ball on spawn to avoid wrong sky/horizon aim.")]
+    public bool forceLookAtBall = true;
+
+    [Tooltip("Looks slightly below the ball center for a subtle downward tilt.")]
+    public float lookBelowBall = 0.5f;
+
     private Transform cam;
 
     public override void Spawned()
@@ -63,14 +71,29 @@ public class BallCenterCameraFollow : NetworkBehaviour
 
         cam.position = transform.position + offset;
 
+        // Primary safety: explicitly aim at the local ball.
+        // This prevents accidental sky/horizon view regardless of inspector rotation state.
+        if (forceLookAtBall)
+        {
+            Vector3 ballAimPoint = transform.position + Vector3.down * Mathf.Abs(lookBelowBall);
+            Vector3 toBall = ballAimPoint - cam.position;
+
+            if (toBall.sqrMagnitude < 0.0001f)
+                toBall = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+
+            if (toBall.sqrMagnitude < 0.0001f)
+                toBall = Vector3.forward;
+
+            cam.rotation = Quaternion.LookRotation(toBall.normalized, Vector3.up);
+            return;
+        }
+
         if (useFixedRotation)
         {
             cam.rotation = Quaternion.Euler(fixedEulerAngles);
             return;
         }
 
-        // IMPORTANT: keep vertical component in look direction.
-        // Flattening Y here can point the camera at horizon/sky when camera is elevated.
         Vector3 lookTarget = centerPoint != null ? centerPoint.position : transform.position;
         Vector3 dir = lookTarget - cam.position;
 

@@ -69,22 +69,20 @@ public class BallCenterCameraFollow : NetworkBehaviour
             return;
         }
 
-        if (centerPoint != null)
-        {
-            Vector3 dir = centerPoint.position - cam.position;
-            dir.y = 0f;
-            if (dir.sqrMagnitude < 0.0001f)
-                dir = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+        // IMPORTANT: keep vertical component in look direction.
+        // Flattening Y here can point the camera at horizon/sky when camera is elevated.
+        Vector3 lookTarget = centerPoint != null ? centerPoint.position : transform.position;
+        Vector3 dir = lookTarget - cam.position;
 
-            cam.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
-        }
-        else
+        if (dir.sqrMagnitude < 0.0001f)
         {
             Vector3 planarForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
             if (planarForward.sqrMagnitude < 0.0001f)
                 planarForward = Vector3.forward;
 
-            cam.rotation = Quaternion.LookRotation(planarForward, Vector3.up);
+            dir = planarForward;
         }
+
+        cam.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
     }
 }

@@ -4,29 +4,29 @@ using UnityEngine;
 public class BallCenterCameraFollow : NetworkBehaviour
 {
     [Header("Center Point (Scene Object)")]
-    [Tooltip("Drag your center point transform here. If left empty, we'll try to find by name/tag.")]
+    [Tooltip("Drag your center point transform here. If left empty, we'll try to find by name.")]
     public Transform centerPoint;
 
     [Tooltip("If centerPoint is not assigned, we will try to find a GameObject by this name.")]
     public string centerPointName = "CenterPoint";
 
-    [Header("Camera Placement")]
-    public float distanceBehindBall = 10f; // how far behind
-    public float height = 8f;              // how high
-    public float positionLerp = 10f;       // smooth follow
-    public float snapDistance = 8f;        // snap if too far (prevents long catch-up)
+    [Header("Local Camera Placement (static after spawn)")]
+    [Tooltip("How far behind the spawned ball the local camera starts (on XZ plane).")]
+    public float distanceBehindBall = 10f;
 
-    [Header("Look")]
-    public bool lookAtCenter = true;       // always look at center
-    public bool lookAtBallInstead = false; // optional, if you prefer camera to look at ball
+    [Tooltip("Camera height above the spawned ball.")]
+    public float height = 10f;
+
+    [Tooltip("If true, camera looks to center. If false, camera keeps spawn-forward look direction.")]
+    public bool lookAtCenter = true;
 
     private Transform cam;
-    private bool active;
 
     public override void Spawned()
     {
-        // Only local player controls camera
-        if (!Object.HasInputAuthority) return;
+        // Only the local owning player controls a camera.
+        if (!Object.HasInputAuthority)
+            return;
 
         cam = Camera.main != null ? Camera.main.transform : null;
         if (cam == null)
@@ -35,79 +35,42 @@ public class BallCenterCameraFollow : NetworkBehaviour
             return;
         }
 
-        // Resolve center point if not assigned
-        if (centerPoint == null)
-        {
-            var go = GameObject.Find(centerPointName);
-            if (go != null) centerPoint = go.transform;
-        }
+        ResolveCenterPoint();
+        SnapLocalCameraAtSpawn();
+    }
 
-        if (centerPoint == null)
-        {
-            Debug.LogWarning($"[BallCenterCameraFollow] Center point not found. Assign it in inspector or name it '{centerPointName}'.");
+    private void ResolveCenterPoint()
+    {
+        if (centerPoint != null || string.IsNullOrWhiteSpace(centerPointName))
             return;
-        }
 
-        active = true;
-
-        // Snap immediately on spawn
-        SnapNow();
+        var go = GameObject.Find(centerPointName);
+        if (go != null)
+            centerPoint = go.transform;
     }
 
-    private void LateUpdate()
+    private void SnapLocalCameraAtSpawn()
     {
-        if (!active || cam == null || centerPoint == null) return;
+        // Use spawn-forward (already aligned to map center by spawner) and place camera behind it.
+        Vector3 planarForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up).normalized;
+        if (planarForward.sqrMagnitude < 0.0001f)
+            planarForward = Vector3.forward;
 
-        // Direction from center to ball (outward)
-        Vector3 outward = (transform.position - centerPoint.position);
-        outward.y = 0f;
+        Vector3 camPos = transform.position - planarForward * distanceBehindBall + Vector3.up * height;
+        cam.position = camPos;
 
-        if (outward.sqrMagnitude < 0.0001f)
-            outward = Vector3.forward;
-
-        outward.Normalize();
-
-        // Camera behind ball (further outward) + height
-        Vector3 targetPos = transform.position + outward * distanceBehindBall + Vector3.up * height;
-
-        float dist = Vector3.Distance(cam.position, targetPos);
-
-        if (dist > snapDistance)
+        if (lookAtCenter && centerPoint != null)
         {
-            cam.position = targetPos;
+            Vector3 dir = centerPoint.position - cam.position;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.0001f)
+                dir = planarForward;
+
+            cam.rotation = Quaternion.LookRotation(dir.normalized, Vector3.up);
         }
         else
         {
-            float t = 1f - Mathf.Exp(-positionLerp * Time.deltaTime);
-            cam.position = Vector3.Lerp(cam.position, targetPos, t);
+            cam.rotation = Quaternion.LookRotation(planarForward, Vector3.up);
         }
-
-        // Rotation: always stable up, no roll
-        if (lookAtBallInstead)
-        {
-            cam.rotation = Quaternion.LookRotation((transform.position - cam.position).normalized, Vector3.up);
-        }
-        else if (lookAtCenter)
-        {
-            cam.rotation = Quaternion.LookRotation((centerPoint.position - cam.position).normalized, Vector3.up);
-        }
-    }
-
-    private void SnapNow()
-    {
-        Vector3 outward = (transform.position - centerPoint.position);
-        outward.y = 0f;
-
-        if (outward.sqrMagnitude < 0.0001f)
-            outward = Vector3.forward;
-
-        outward.Normalize();
-
-        cam.position = transform.position + outward * distanceBehindBall + Vector3.up * height;
-
-        if (lookAtBallInstead)
-            cam.rotation = Quaternion.LookRotation((transform.position - cam.position).normalized, Vector3.up);
-        else
-            cam.rotation = Quaternion.LookRotation((centerPoint.position - cam.position).normalized, Vector3.up);
     }
 }

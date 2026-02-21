@@ -11,6 +11,10 @@ namespace Project.Networking.Fusion
         private NetworkRunner runner;
         private Transform[] spawnPoints;
 
+        [Header("Spawn Facing")]
+        [SerializeField] private Transform mapCenter;
+        [SerializeField] private string mapCenterName = "CenterPoint";
+
         // Keep track so we don't spawn twice for local player
         private NetworkObject localPlayerObject;
 
@@ -66,7 +70,8 @@ namespace Project.Networking.Fusion
             int index = (Mathf.Abs(player.RawEncoded) % usable) + 1;
             Transform t = spawnPoints[index];
 
-            var obj = runner.Spawn(playerPrefab, t.position, t.rotation, player);
+            Quaternion spawnRotation = GetSpawnRotationFacingCenter(t.position);
+            var obj = runner.Spawn(playerPrefab, t.position, spawnRotation, player);
 
             if (player == runner.LocalPlayer)
                 localPlayerObject = obj;
@@ -86,5 +91,24 @@ namespace Project.Networking.Fusion
 
             Debug.Log($"[Spawner] Local={runner.LocalPlayer} spawned for={player} obj.InputAuthority={obj.InputAuthority}");
         }
+        private Quaternion GetSpawnRotationFacingCenter(Vector3 spawnPosition)
+        {
+            if (mapCenter == null && !string.IsNullOrWhiteSpace(mapCenterName))
+            {
+                var centerGo = GameObject.Find(mapCenterName);
+                if (centerGo != null)
+                    mapCenter = centerGo.transform;
+            }
+
+            Vector3 centerPos = mapCenter != null ? mapCenter.position : Vector3.zero;
+            Vector3 toCenter = centerPos - spawnPosition;
+            toCenter.y = 0f;
+
+            if (toCenter.sqrMagnitude < 0.0001f)
+                toCenter = Vector3.forward;
+
+            return Quaternion.LookRotation(toCenter.normalized, Vector3.up);
+        }
+
     }
 }

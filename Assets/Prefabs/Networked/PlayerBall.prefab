@@ -300,10 +300,7 @@ MonoBehaviour:
   centerPointName: CenterPoint
   distanceBehindBall: 10
   height: 10
-  positionLerp: 10
-  snapDistance: 8
-  lookAtCenter: 0
-  lookAtBallInstead: 1
+  lookAtCenter: 1
 --- !u!1029 &8512756420842580546
 DefaultAsset:
   m_ObjectHideFlags: 0

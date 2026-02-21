@@ -1,113 +1,153 @@
 using Fusion;
 using UnityEngine;
 
+/// Local-player-only camera follow for Shared mode.
+/// - Camera follows ball position through a separate CameraTarget pivot.
+/// - Camera never inherits ball roll/pitch rotation.
+/// - Exposes planar forward/right basis for camera-relative movement input.
 public class BallCenterCameraFollow : NetworkBehaviour
 {
-    [Header("Center Point (Scene Object)")]
-    [Tooltip("Drag your center point transform here. If left empty, we'll try to find by name/tag.")]
-    public Transform centerPoint;
+    [Header("Target Pivot")]
+    [Tooltip("Optional external pivot. If not assigned, one is created at runtime (not parented to ball).")]
+    [SerializeField] private Transform cameraTarget;
+    [SerializeField] private Vector3 targetOffset = Vector3.zero;
 
-    [Tooltip("If centerPoint is not assigned, we will try to find a GameObject by this name.")]
-    public string centerPointName = "CenterPoint";
+    [Header("Camera Follow")]
+    [Tooltip("Camera offset from CameraTarget in pivot space (not ball space).")]
+    [SerializeField] private Vector3 cameraLocalOffset = new Vector3(0f, 8f, -10f);
+    [SerializeField] private float targetLerp = 16f;
+    [SerializeField] private float positionLerp = 12f;
+    [SerializeField] private float snapDistance = 10f;
 
-    [Header("Camera Placement")]
-    public float distanceBehindBall = 10f; // how far behind
-    public float height = 8f;              // how high
-    public float positionLerp = 10f;       // smooth follow
-    public float snapDistance = 8f;        // snap if too far (prevents long catch-up)
+    [Header("Camera Rotation")]
+    [Tooltip("Keep camera rotation fixed and stable. Disable to use LookAt target with world-up.")]
+    [SerializeField] private bool useFixedRotation = true;
+    [SerializeField] private Vector3 fixedEulerAngles = new Vector3(25f, 0f, 0f);
+    [SerializeField] private float rotationLerp = 14f;
 
-    [Header("Look")]
-    public bool lookAtCenter = true;       // always look at center
-    public bool lookAtBallInstead = false; // optional, if you prefer camera to look at ball
+    private Transform _cam;
+    private bool _active;
+    private bool _createdRuntimeTarget;
+    private Quaternion _pivotYaw;
 
-    private Transform cam;
-    private bool active;
+    public static BallCenterCameraFollow LocalInstance { get; private set; }
 
     public override void Spawned()
     {
-        // Only local player controls camera
-        if (!Object.HasInputAuthority) return;
+        if (!Object.HasInputAuthority)
+            return;
 
-        cam = Camera.main != null ? Camera.main.transform : null;
-        if (cam == null)
+        Camera mainCam = Camera.main;
+        if (mainCam == null)
         {
             Debug.LogWarning("[BallCenterCameraFollow] No Camera.main found. Ensure Main Camera is tagged MainCamera.");
             return;
         }
 
-        // Resolve center point if not assigned
-        if (centerPoint == null)
-        {
-            var go = GameObject.Find(centerPointName);
-            if (go != null) centerPoint = go.transform;
-        }
+        _cam = mainCam.transform;
+        EnsureCameraTarget();
 
-        if (centerPoint == null)
-        {
-            Debug.LogWarning($"[BallCenterCameraFollow] Center point not found. Assign it in inspector or name it '{centerPointName}'.");
-            return;
-        }
+        // Stable yaw is derived once from existing camera orientation.
+        _pivotYaw = Quaternion.Euler(0f, _cam.eulerAngles.y, 0f);
 
-        active = true;
+        _active = true;
+        LocalInstance = this;
 
-        // Snap immediately on spawn
         SnapNow();
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        if (LocalInstance == this)
+            LocalInstance = null;
+
+        _active = false;
+
+        if (_createdRuntimeTarget && cameraTarget != null)
+        {
+            Destroy(cameraTarget.gameObject);
+            cameraTarget = null;
+            _createdRuntimeTarget = false;
+        }
+    }
+
+    public bool TryGetPlanarBasis(out Vector3 forward, out Vector3 right)
+    {
+        forward = Vector3.zero;
+        right = Vector3.zero;
+
+        if (!_active || _cam == null)
+            return false;
+
+        forward = Vector3.ProjectOnPlane(_cam.forward, Vector3.up);
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.ProjectOnPlane(_pivotYaw * Vector3.forward, Vector3.up);
+
+        forward.Normalize();
+        right = Vector3.Cross(Vector3.up, forward).normalized;
+        return true;
     }
 
     private void LateUpdate()
     {
-        if (!active || cam == null || centerPoint == null) return;
+        if (!_active || _cam == null || cameraTarget == null)
+            return;
 
-        // Direction from center to ball (outward)
-        Vector3 outward = (transform.position - centerPoint.position);
-        outward.y = 0f;
+        Vector3 desiredTargetPos = transform.position + targetOffset;
+        float targetT = 1f - Mathf.Exp(-targetLerp * Time.deltaTime);
+        cameraTarget.position = Vector3.Lerp(cameraTarget.position, desiredTargetPos, targetT);
 
-        if (outward.sqrMagnitude < 0.0001f)
-            outward = Vector3.forward;
-
-        outward.Normalize();
-
-        // Camera behind ball (further outward) + height
-        Vector3 targetPos = transform.position + outward * distanceBehindBall + Vector3.up * height;
-
-        float dist = Vector3.Distance(cam.position, targetPos);
+        Vector3 desiredCamPos = cameraTarget.position + (_pivotYaw * cameraLocalOffset);
+        float dist = Vector3.Distance(_cam.position, desiredCamPos);
 
         if (dist > snapDistance)
         {
-            cam.position = targetPos;
+            _cam.position = desiredCamPos;
         }
         else
         {
-            float t = 1f - Mathf.Exp(-positionLerp * Time.deltaTime);
-            cam.position = Vector3.Lerp(cam.position, targetPos, t);
+            float posT = 1f - Mathf.Exp(-positionLerp * Time.deltaTime);
+            _cam.position = Vector3.Lerp(_cam.position, desiredCamPos, posT);
         }
 
-        // Rotation: always stable up, no roll
-        if (lookAtBallInstead)
-        {
-            cam.rotation = Quaternion.LookRotation((transform.position - cam.position).normalized, Vector3.up);
-        }
-        else if (lookAtCenter)
-        {
-            cam.rotation = Quaternion.LookRotation((centerPoint.position - cam.position).normalized, Vector3.up);
-        }
+        Quaternion targetRot = ResolveCameraRotation();
+        float rotT = 1f - Mathf.Exp(-rotationLerp * Time.deltaTime);
+        _cam.rotation = Quaternion.Slerp(_cam.rotation, targetRot, rotT);
     }
 
     private void SnapNow()
     {
-        Vector3 outward = (transform.position - centerPoint.position);
-        outward.y = 0f;
+        if (_cam == null || cameraTarget == null)
+            return;
 
-        if (outward.sqrMagnitude < 0.0001f)
-            outward = Vector3.forward;
+        cameraTarget.position = transform.position + targetOffset;
+        _cam.position = cameraTarget.position + (_pivotYaw * cameraLocalOffset);
+        _cam.rotation = ResolveCameraRotation();
+    }
 
-        outward.Normalize();
+    private Quaternion ResolveCameraRotation()
+    {
+        if (useFixedRotation)
+        {
+            float yaw = _pivotYaw.eulerAngles.y + fixedEulerAngles.y;
+            return Quaternion.Euler(fixedEulerAngles.x, yaw, fixedEulerAngles.z);
+        }
 
-        cam.position = transform.position + outward * distanceBehindBall + Vector3.up * height;
+        Vector3 lookDir = cameraTarget.position - _cam.position;
+        if (lookDir.sqrMagnitude < 0.0001f)
+            lookDir = _pivotYaw * Vector3.forward;
 
-        if (lookAtBallInstead)
-            cam.rotation = Quaternion.LookRotation((transform.position - cam.position).normalized, Vector3.up);
-        else
-            cam.rotation = Quaternion.LookRotation((centerPoint.position - cam.position).normalized, Vector3.up);
+        return Quaternion.LookRotation(lookDir.normalized, Vector3.up);
+    }
+
+    private void EnsureCameraTarget()
+    {
+        if (cameraTarget != null)
+            return;
+
+        GameObject go = new GameObject($"{name}_CameraTarget");
+        cameraTarget = go.transform;
+        cameraTarget.SetParent(null, true); // must not inherit ball rotation
+        _createdRuntimeTarget = true;
     }
 }

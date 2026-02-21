@@ -8,10 +8,13 @@ namespace Project.Networking.Fusion
         [Header("Network Prefab")]
         [SerializeField] private NetworkPrefabRef playerPrefab;
 
+        [Header("Spawn Orientation")]
+        [SerializeField] private Transform mapCenter;
+        [SerializeField] private string mapCenterName = "CenterPoint";
+
         private NetworkRunner runner;
         private Transform[] spawnPoints;
 
-        // Keep track so we don't spawn twice for local player
         private NetworkObject localPlayerObject;
 
         public void Init(NetworkRunner r) => runner = r;
@@ -26,9 +29,10 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            // includes parent at index 0
             spawnPoints = parent.GetComponentsInChildren<Transform>(true);
             Debug.Log($"Found {spawnPoints.Length - 1} spawn points");
+
+            ResolveMapCenter(parent.transform);
         }
 
         public void EnsureLocalPlayerSpawned()
@@ -48,11 +52,9 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            // If this is local player and already spawned, do nothing
             if (player == runner.LocalPlayer && localPlayerObject != null)
                 return;
 
-            // SpawnPoints might not exist yet (scene still loading) → try refresh
             if (spawnPoints == null || spawnPoints.Length <= 1)
                 RefreshSpawnPoints();
 
@@ -62,29 +64,55 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            int usable = spawnPoints.Length - 1; // skip parent
+            int usable = spawnPoints.Length - 1;
             int index = (Mathf.Abs(player.RawEncoded) % usable) + 1;
-            Transform t = spawnPoints[index];
+            Transform spawn = spawnPoints[index];
 
-            var obj = runner.Spawn(playerPrefab, t.position, t.rotation, player);
+            Quaternion spawnRotation = ComputeSpawnRotationTowardsCenter(spawn.position, spawn.rotation);
+            var obj = runner.Spawn(playerPrefab, spawn.position, spawnRotation, player);
 
             if (player == runner.LocalPlayer)
                 localPlayerObject = obj;
 
             var ctrl = obj.GetComponent<NetworkPlayerController>();
             if (ctrl != null)
-            {
-                // StateAuthority for local player is local in Shared Mode (since we spawned it)
                 ctrl.SetPlayerName(Project.Core.LocalProfile.GetName());
 
-            }
-
-            // Optional: register with match manager (fine for now)
             var match = FindObjectOfType<NetworkMatchManager>();
             if (match != null && obj != null)
                 match.RegisterPlayer(obj);
 
             Debug.Log($"[Spawner] Local={runner.LocalPlayer} spawned for={player} obj.InputAuthority={obj.InputAuthority}");
+        }
+
+        private void ResolveMapCenter(Transform spawnRoot)
+        {
+            if (mapCenter != null)
+                return;
+
+            var named = GameObject.Find(mapCenterName);
+            if (named != null)
+            {
+                mapCenter = named.transform;
+                return;
+            }
+
+            // Fallback: use spawn root origin as arena center.
+            mapCenter = spawnRoot;
+        }
+
+        private Quaternion ComputeSpawnRotationTowardsCenter(Vector3 spawnPosition, Quaternion fallback)
+        {
+            if (mapCenter == null)
+                return fallback;
+
+            Vector3 toCenter = mapCenter.position - spawnPosition;
+            toCenter.y = 0f;
+
+            if (toCenter.sqrMagnitude < 0.0001f)
+                return fallback;
+
+            return Quaternion.LookRotation(toCenter.normalized, Vector3.up);
         }
     }
 }

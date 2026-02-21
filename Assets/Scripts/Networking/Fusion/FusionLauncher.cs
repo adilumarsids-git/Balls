@@ -16,6 +16,11 @@ namespace Project.Networking.Fusion
         [SerializeField] private SessionLobby lobby = SessionLobby.Shared; // Public lobby list
         [SerializeField] private int menuSceneBuildIndex = 2; // 02_Menu
 
+        [Header("Latency Tuning")]
+        [SerializeField] private bool optimizeLocalLatency = true;
+        [SerializeField] private int targetFrameRate = 120;
+        [SerializeField] private float physicsTickRate = 60f;
+
         private NetworkRunner runner;
         private PlayerSpawner spawner;
 
@@ -24,6 +29,8 @@ namespace Project.Networking.Fusion
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
+
+            ApplyLatencyTuning();
             runner = GetComponent<NetworkRunner>();
             spawner = GetComponent<PlayerSpawner>();
 
@@ -36,6 +43,21 @@ namespace Project.Networking.Fusion
                 runner.AddCallbacks(inputProvider);
 
             spawner.Init(runner);
+        }
+
+
+        private void ApplyLatencyTuning()
+        {
+            if (!optimizeLocalLatency)
+                return;
+
+            // Lower client-side input/render latency (does not remove internet RTT).
+            QualitySettings.vSyncCount = 0;
+            if (targetFrameRate > 0)
+                Application.targetFrameRate = targetFrameRate;
+
+            if (physicsTickRate > 1f)
+                Time.fixedDeltaTime = 1f / physicsTickRate;
         }
 
         public async Task JoinPublicLobby()

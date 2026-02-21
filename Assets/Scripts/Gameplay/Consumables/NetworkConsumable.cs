@@ -1,7 +1,11 @@
 ﻿using Fusion;
 using UnityEngine;
-using Project.Networking.Fusion;
 using Project.Gameplay.Player;
+<<<<<<< Updated upstream
+=======
+using Project.Data;
+using Project.Networking.Fusion;
+>>>>>>> Stashed changes
 
 namespace Project.Game.Consumables
 {
@@ -10,29 +14,63 @@ namespace Project.Game.Consumables
     {
         [Networked] public NetworkBool IsActive { get; private set; } = true;
 
+<<<<<<< Updated upstream
         // Optional: you can sync a type id later (different consumables)
         [SerializeField] private float sizeMultiplier = 1.15f;
         [SerializeField] private float speedMultiplier = 1.10f;
         [SerializeField] private float massMultiplier = 1.10f;
+=======
+        [SerializeField] private ConsumableConfigSO config;
+
+        private Renderer[] cachedRenderers;
+        private Collider[] cachedColliders;
+
+        private bool _lastActive;
+
+        public override void Spawned()
+        {
+            CacheComponents();
+            _lastActive = IsActive;
+            SetActiveVisual(IsActive);
+        }
+
+        public override void Render()
+        {
+            if (_lastActive != IsActive)
+            {
+                _lastActive = IsActive;
+                SetActiveVisual(IsActive);
+            }
+        }
+
+        private void CacheComponents()
+        {
+            if (cachedRenderers == null || cachedRenderers.Length == 0)
+                cachedRenderers = GetComponentsInChildren<Renderer>(true);
+
+            if (cachedColliders == null || cachedColliders.Length == 0)
+                cachedColliders = GetComponentsInChildren<Collider>(true);
+        }
+>>>>>>> Stashed changes
 
         private void OnTriggerEnter(Collider other)
         {
             if (!IsActive) return;
 
-            // Only the player who owns their physics should try to report pickup
             var playerTag = other.GetComponentInParent<PlayerTag>();
             if (playerTag == null) return;
 
             var playerObj = playerTag.NetObj;
             if (playerObj == null) return;
 
-            // In Shared, player is simulated on its StateAuthority peer
+            // Only the player's StateAuthority reports pickup (prevents doubles)
             if (!playerObj.HasStateAuthority) return;
 
             var flow = NetworkGameFlowManager.Instance;
             if (flow == null || !flow.IsReady) return;
             if (flow.State != MatchFlowState.Playing) return;
 
+<<<<<<< Updated upstream
             // Report pickup to master (single source of truth)
             flow.RPC_ReportConsumablePickup(Object, playerObj, sizeMultiplier, speedMultiplier, massMultiplier);
         }
@@ -41,6 +79,52 @@ namespace Project.Game.Consumables
         {
             // Local visual control
             gameObject.SetActive(active);
+=======
+            if (config == null) return;
+
+            float sizeMul = 1f + (config.sizeAdd * config.sizeScaleFactor);
+            float speedMul = 1f + config.speedAdd;
+            float massMul = 1f + config.massAdd;
+
+            // ✅ process pickup on consumable authority (closest player via DistanceBasedAuthority)
+            RPC_RequestPickup(playerObj, sizeMul, speedMul, massMul);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RequestPickup(NetworkObject playerObj, float sizeMul, float speedMul, float massMul)
+        {
+            if (!IsActive) return;
+
+            var flow = NetworkGameFlowManager.Instance;
+            if (flow == null || !flow.IsReady) return;
+            if (flow.State != MatchFlowState.Playing) return;
+
+            IsActive = false; // instant hide replication
+
+            var ctrl = playerObj != null ? playerObj.GetComponent<NetworkPlayerController>() : null;
+            if (ctrl != null)
+                ctrl.RPC_ApplyConsumableToAuthority(sizeMul, speedMul, massMul);
+
+            // master schedules respawn (not time critical)
+            flow.RPC_ReportConsumablePickup(Object, playerObj, sizeMul, speedMul, massMul);
+        }
+
+        public void SetActiveState(bool active)
+        {
+            if (Object.HasStateAuthority)
+                IsActive = active;
+
+            _lastActive = IsActive;
+            SetActiveVisual(active);
+        }
+
+        private void SetActiveVisual(bool active)
+        {
+            CacheComponents();
+
+            foreach (var r in cachedRenderers) r.enabled = active;
+            foreach (var c in cachedColliders) c.enabled = active;
+>>>>>>> Stashed changes
         }
     }
 }

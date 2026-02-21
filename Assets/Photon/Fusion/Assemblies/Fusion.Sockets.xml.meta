@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 1fe5188413abb564db849e0a2b277039
+guid: a9d2b54676a9a5348bd6c53dc2cbbf90
 labels:
 - FusionCodeDoc
 TextScriptImporter:
@@ -7,10 +7,3 @@ TextScriptImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-AssetOrigin:
-  serializedVersion: 1
-  productId: 267958
-  packageName: Photon Fusion
-  packageVersion: 2.0.9
-  assetPath: Assets/Photon/Fusion/Assemblies/Fusion.Sockets.xml
-  uploadId: 832254

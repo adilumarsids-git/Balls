@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 6454e3cf49c258247a1c25c0fcf26fde
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 2100000
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181308
+  packageName: Simply Sky Gradient Shader
+  packageVersion: 1.03
+  assetPath: Assets/SkyShader/HDRP_ShaderAndMat/HDPR_Mat_Basic.mat
+  uploadId: 533190

@@ -76,6 +76,7 @@ namespace Project.Networking.Fusion
             {
                 // StateAuthority for local player is local in Shared Mode (since we spawned it)
                 ctrl.SetPlayerName(Project.Core.LocalProfile.GetName());
+
             }
 
             // Optional: register with match manager (fine for now)

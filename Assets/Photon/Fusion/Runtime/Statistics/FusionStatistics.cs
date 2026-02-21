@@ -10,6 +10,7 @@ using UnityEngine.Profiling;
   [RequireComponent(typeof(NetworkRunner))]
   [DisallowMultipleComponent]
   [AddComponentMenu("Fusion/Statistics/Fusion Statistics")]
+  [HelpURL("https://doc.photonengine.com/fusion/v2/manual/testing-and-tooling/fusion-statistics")]
   public class FusionStatistics : SimulationBehaviour, ISpawned {
     internal List<FusionStatsGraphBase> ActiveGraphs => _statsGraph;
     

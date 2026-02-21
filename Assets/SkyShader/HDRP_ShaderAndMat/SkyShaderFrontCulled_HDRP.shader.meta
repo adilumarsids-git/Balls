@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: 5bd98d8a719f2094e8959a5cbb93045b
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 181308
+  packageName: Simply Sky Gradient Shader
+  packageVersion: 1.03
+  assetPath: Assets/SkyShader/HDRP_ShaderAndMat/SkyShaderFrontCulled_HDRP.shader
+  uploadId: 533190

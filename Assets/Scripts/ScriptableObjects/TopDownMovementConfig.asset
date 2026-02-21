@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c8991da1a953a104b8415e9bc1b46ef9, type: 3}
   m_Name: TopDownMovementConfig
   m_EditorClassIdentifier: Assembly-CSharp::Project.Data.TopDownMovementConfigSO
-  baseSpeed: 8
-  acceleration: 40
-  maxSpeed: 10
-  linearDrag: 6
-  stopDamping: 12
+  baseSpeed: 7
+  acceleration: 32
+  maxSpeed: 11
+  linearDrag: 2.5
+  stopDamping: 4.5

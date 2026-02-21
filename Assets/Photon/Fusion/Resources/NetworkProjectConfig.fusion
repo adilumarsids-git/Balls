@@ -1,6 +1,7 @@
 {
     "Version": 1,
     "TypeId": "NetworkProjectConfig",
+    "HubMode": 2,
     "PeerMode": 0,
     "LagCompensation": {
         "Enabled": false,
@@ -8,27 +9,35 @@
         "HitboxDefaultCapacity": 512,
         "CachedStaticCollidersSize": 64
     },
+    "PhysicsForecast": true,
     "EnqueueIncompleteSynchronousSpawns": false,
     "InvokeRenderInBatchMode": true,
     "NetworkIdIsObjectName": false,
     "HideNetworkObjectInactivityGuard": false,
     "AllowClientServerModesInWebGL": false,
+    "AllowMasterClientReassignRequest": false,
+    "MasterClientRequestReassignThreshold": 2.0,
     "ClientsRecordFrameAndPacketTimingTraces": false,
     "Simulation": {
         "InputDataWordCount": 0,
-        "ReplicationFeatures": 1,
+        "ReplicationFeatures": 0,
+        "InterestManagementConfig": {
+            "AreaOfInterestCellSize": 32,
+            "AreaOfInterestCellGridSize": {
+                "x": 1024,
+                "y": 1024,
+                "z": 1024
+            }
+        },
         "InputTransferMode": 0,
         "SimulationUpdateTimeMode": 0,
         "PlayerCount": 10,
         "TickRateSelection": {
-            "Client": 60,
+            "Client": 32,
             "ServerIndex": 0,
             "ClientSendIndex": 1,
             "ServerSendIndex": 1
-        },
-        "MaxObjectDestroysSentPerPacket": 32,
-        "EnableExperimentalPacketLossRecovery": false,
-        "EnableAdaptivePacketFragmentation": false
+        }
     },
     "Network": {
         "ConnectionTimeout": 10.0,
@@ -63,11 +72,8 @@
         "GlobalsSize": 0
     },
     "AssembliesToWeave": [
-        "Fusion.Unity",
         "Assembly-CSharp",
-        "Assembly-CSharp-firstpass",
-        "Fusion.Addons.Physics",
-        "Fusion.Addons.FSM"
+        "Assembly-CSharp-firstpass"
     ],
     "UseSerializableDictionary": true,
     "NullChecksForNetworkedProperties": true,

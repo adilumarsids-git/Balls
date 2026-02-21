@@ -1,6 +1,11 @@
 ﻿using Fusion;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+<<<<<<< Updated upstream
+=======
+using Project.Game.Consumables;
+using Project.Leaderboard;
+>>>>>>> Stashed changes
 
 namespace Project.Networking.Fusion
 {
@@ -128,26 +133,42 @@ namespace Project.Networking.Fusion
 
                 State = MatchFlowState.GameOver;
 
-                RPC_AnnounceWinner(WinnerName);
+                RPC_AnnounceWinner(winnerObj, WinnerName);
 
                 BackToMenuTimer = TickTimer.CreateFromSeconds(Runner, backToMenuDelay);
             }
 
         }
+
+        private async System.Threading.Tasks.Task SubmitWinnerAsync(string nftKey, string displayName)
+        {
+            try
+            {
+                var leaderboard = NftLeaderboardService.FindOrCreate();
+                await leaderboard.SubmitWinAsync(nftKey, displayName);
+                Debug.Log($"[Flow] Leaderboard submitted: {displayName} ({nftKey})");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogWarning($"[Flow] Leaderboard submit failed: {ex.Message}");
+            }
+        }
+
         private NetworkString<_32> GetWinnerName(NetworkObject winnerObj)
         {
-            if (winnerObj == null) return "Unknown";
+            if (winnerObj == null) return "Unknown NFT";
 
-            var ctrl = winnerObj.GetComponent<NetworkPlayerController>();
-            if (ctrl != null)
+            var appearance = winnerObj.GetComponent<NetworkPlayerAppearance>();
+            if (appearance != null)
             {
-                var n = ctrl.PlayerName.ToString();
-                if (!string.IsNullOrWhiteSpace(n))
-                    return n;
+                var nftName = appearance.GetLeaderboardNftDisplayName();
+                if (!string.IsNullOrWhiteSpace(nftName))
+                    return nftName;
             }
 
-            return winnerObj.name;
+            return "Unknown NFT";
         }
+
 
 
         /// <summary> Remaining countdown seconds for UI. </summary>
@@ -221,11 +242,40 @@ namespace Project.Networking.Fusion
 
         }
 
-        [Rpc(RpcSources.All, RpcTargets.All)]
-        private void RPC_AnnounceWinner(NetworkString<_32> winner)
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_AnnounceWinner(NetworkObject winnerObj, NetworkString<_32> winnerName)
         {
-            Debug.Log($"Winner: {winner}");
+            Debug.Log($"Winner: {winnerName}");
+
+            // Only Shared master/state authority should submit to leaderboard
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority)
+                return;
+
+            if (winnerObj == null)
+            {
+                Debug.LogWarning("[Flow] WinnerObj is null, cannot submit leaderboard.");
+                return;
+            }
+
+            var appearance = winnerObj.GetComponent<NetworkPlayerAppearance>();
+            if (appearance == null)
+            {
+                Debug.LogWarning("[Flow] Winner has no NetworkPlayerAppearance, cannot submit leaderboard.");
+                return;
+            }
+
+            var nftKey = appearance.GetLeaderboardNftKey();
+            if (string.IsNullOrWhiteSpace(nftKey))
+            {
+                Debug.LogWarning("[Flow] Winner nftKey is empty, cannot submit leaderboard.");
+                return;
+            }
+
+            string displayName = appearance.GetLeaderboardNftDisplayName();
+
+            _ = SubmitWinnerAsync(nftKey, displayName);
         }
+
 
         [Rpc(RpcSources.All, RpcTargets.All)]
         private void RPC_BackToMenu(int menuBuildIndex)
@@ -310,12 +360,29 @@ namespace Project.Networking.Fusion
         private void RPC_RespawnConsumable(NetworkObject obj, Vector3 pos)
         {
             if (obj == null) return;
-            obj.transform.position = pos;
+
+            var nt = obj.GetComponent<NetworkTransform>();
+            if (nt != null) nt.Teleport(pos, obj.transform.rotation);
+            else obj.transform.position = pos;
+
 
             var cons = obj.GetComponent<Project.Game.Consumables.NetworkConsumable>();
             if (cons != null)
                 cons.SetActiveVisual(true);
         }
+
+
+        [Rpc(RpcSources.All, RpcTargets.All)]
+        public void RPC_ScheduleConsumableRespawn(NetworkObject consumableObj)
+        {
+            // Master only schedules respawn
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority) return;
+            if (State != MatchFlowState.Playing) return;
+            if (consumableObj == null) return;
+
+            StartCoroutine(RespawnConsumableAfter(consumableObj, consumableRespawnSeconds));
+        }
+
 
 
     }

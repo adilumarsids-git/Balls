@@ -38,7 +38,6 @@ namespace Project.Networking.Fusion
 
         public async Task JoinPublicLobby()
         {
-            // Can be called multiple times safely
             await runner.JoinSessionLobby(lobby);
         }
 
@@ -60,11 +59,10 @@ namespace Project.Networking.Fusion
                 IsOpen = true,
                 PlayerCount = maxPlayers,
 
-                // ✅ Add session props (visible in public list)
                 SessionProperties = new Dictionary<string, SessionProperty>
-        {
-            { "map", mapBuildIndex }
-        }
+                {
+                    { "map", mapBuildIndex }
+                }
             };
 
             var result = await runner.StartGame(args);
@@ -115,6 +113,7 @@ namespace Project.Networking.Fusion
             SessionListChanged?.Invoke(sessionList);
         }
 
+<<<<<<< Updated upstream
 
         // Unused
         public void OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
@@ -123,16 +122,66 @@ namespace Project.Networking.Fusion
         public void OnConnectedToServer(NetworkRunner runner) { }
         public void OnDisconnectedFromServer(NetworkRunner runner) { }
         public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+=======
+        private void ReturnToMenu()
+        {
+            var scene = SceneManager.GetActiveScene();
+            if (scene.buildIndex == menuSceneBuildIndex)
+                return;
+
+            SceneManager.LoadScene(menuSceneBuildIndex);
+        }
+
+        // ===== Unused callbacks (kept empty) =====
+        public void OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
+        public void OnInput(NetworkRunner runner, NetworkInput input) { }
+
+        public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
+        {
+            ReturnToMenu();
+        }
+
+        public void OnConnectedToServer(NetworkRunner runner) { }
+
+        // Some Fusion versions have this overload, some only have the reason version.
+        public void OnDisconnectedFromServer(NetworkRunner runner)
+        {
+            ReturnToMenu();
+        }
+
+        public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
+        {
+            ReturnToMenu();
+        }
+
+        // Token type changed across versions: keep BOTH.
+        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }
+        public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, ReadOnlySpan<byte> token) { }
+
+>>>>>>> Stashed changes
         public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason) { }
         public void OnUserSimulationMessage(NetworkRunner runner, SimulationMessagePtr message) { }
         public void OnCustomAuthenticationResponse(NetworkRunner runner, Dictionary<string, object> data) { }
         public void OnHostMigration(NetworkRunner runner, HostMigrationToken hostMigrationToken) { }
+<<<<<<< Updated upstream
         public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }
         public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
         public void OnSceneLoadStart(NetworkRunner runner) { }
         public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
         public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason) { }
+=======
+
+        // ✅ FIX: Fusion newer versions expect ReadOnlySpan<byte>. Keep both overloads.
+        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ArraySegment<byte> data) { }
+        public void OnReliableDataReceived(NetworkRunner runner, PlayerRef player, ReliableKey key, ReadOnlySpan<byte> data) { }
+
+        public void OnReliableDataProgress(NetworkRunner runner, PlayerRef player, ReliableKey key, float progress) { }
+
+        public void OnSceneLoadStart(NetworkRunner runner) { }
+        public void OnObjectEnterAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+        public void OnObjectExitAOI(NetworkRunner runner, NetworkObject obj, PlayerRef player) { }
+>>>>>>> Stashed changes
         public void OnInputMissing(NetworkRunner runner, PlayerRef player, NetworkInput input) { }
     }
 }

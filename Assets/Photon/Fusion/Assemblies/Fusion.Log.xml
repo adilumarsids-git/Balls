@@ -705,11 +705,23 @@
         <member name="F:Fusion.InternalLogStreams.LogTraceMemoryTrack">
             <summary>LogTraceMemoryTrack stream</summary>
         </member>
+        <member name="F:Fusion.InternalLogStreams.LogTraceAreaOfInterest">
+            <summary>LogTraceAreaOfInterest stream</summary>
+        </member>
         <member name="F:Fusion.InternalLogStreams.LogTraceSnapshots">
             <summary>LogTraceSnapshots stream</summary>
         </member>
         <member name="F:Fusion.InternalLogStreams.LogTraceTime">
             <summary>LogTraceTime stream</summary>
+        </member>
+        <member name="F:Fusion.InternalLogStreams.LogTraceSendRecv">
+            <summary>LogTraceSendRecv stream</summary>
+        </member>
+        <member name="F:Fusion.InternalLogStreams.LogTracePools">
+            <summary>LogTracePools stream</summary>
+        </member>
+        <member name="F:Fusion.InternalLogStreams.LogTraceParent">
+            <summary>LogTraceParent stream</summary>
         </member>
         <member name="T:Fusion.Log">
             <summary>
@@ -927,6 +939,24 @@
         </member>
         <member name="M:Fusion.Log.TraceSceneManagerError``1(``0,System.String)">
             <summary>Enabled by <c>FUSION_TRACE_SCENEMANAGER</c></summary>
+        </member>
+        <member name="M:Fusion.Log.TraceRealtime(System.String)">
+            <summary>Enabled by <c>FUSION_TRACE_REALTIME</c></summary>
+        </member>
+        <member name="M:Fusion.Log.TraceRealtimeWarn(System.String)">
+            <summary>Enabled by <c>FUSION_TRACE_REALTIME</c></summary>
+        </member>
+        <member name="M:Fusion.Log.TraceRealtimeError(System.String)">
+            <summary>Enabled by <c>FUSION_TRACE_REALTIME</c></summary>
+        </member>
+        <member name="M:Fusion.Log.TraceRealtime``1(``0,System.String)">
+            <summary>Enabled by <c>FUSION_TRACE_REALTIME</c></summary>
+        </member>
+        <member name="M:Fusion.Log.TraceRealtimeWarn``1(``0,System.String)">
+            <summary>Enabled by <c>FUSION_TRACE_REALTIME</c></summary>
+        </member>
+        <member name="M:Fusion.Log.TraceRealtimeError``1(``0,System.String)">
+            <summary>Enabled by <c>FUSION_TRACE_REALTIME</c></summary>
         </member>
         <member name="T:Fusion.LogType">
             <summary>
@@ -1474,11 +1504,23 @@
         <member name="F:Fusion.TraceChannels.MemoryTrack">
             <summary>MemoryTrack</summary>
         </member>
+        <member name="F:Fusion.TraceChannels.AreaOfInterest">
+            <summary>AreaOfInterest</summary>
+        </member>
         <member name="F:Fusion.TraceChannels.Snapshots">
             <summary>Snapshots</summary>
         </member>
         <member name="F:Fusion.TraceChannels.Time">
             <summary>Time</summary>
+        </member>
+        <member name="F:Fusion.TraceChannels.SendRecv">
+            <summary>SendRecv</summary>
+        </member>
+        <member name="F:Fusion.TraceChannels.Pools">
+            <summary>Pools</summary>
+        </member>
+        <member name="F:Fusion.TraceChannels.Parent">
+            <summary>Parent</summary>
         </member>
         <member name="T:Fusion.LogUtils">
             <summary>
@@ -1491,6 +1533,14 @@
             </summary>
             <typeparam name="T">The type of the unmanaged object.</typeparam>
             <param name="ptr">Pointer to the unmanaged object.</param>
+            <returns>A deferred dump of the pointer.</returns>
+        </member>
+        <member name="M:Fusion.LogUtils.GetDump``1(``0@)">
+            <summary>
+            Gets a deferred dump of a pointer to an unmanaged object.
+            </summary>
+            <typeparam name="T">The type of the unmanaged object.</typeparam>
+            <param name="obj">Pointer to the unmanaged object.</param>
             <returns>A deferred dump of the pointer.</returns>
         </member>
         <member name="M:Fusion.LogUtils.GetDump``1(``0)">

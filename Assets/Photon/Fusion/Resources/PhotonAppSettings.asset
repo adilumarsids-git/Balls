@@ -13,10 +13,12 @@ MonoBehaviour:
   m_Name: PhotonAppSettings
   m_EditorClassIdentifier: 
   AppSettings:
+    AppIdRealtime: a7306bfc-b427-4a24-a406-314015443f15
     AppIdFusion: a7306bfc-b427-4a24-a406-314015443f15
+    AppIdQuantum: 
     AppIdChat: 
     AppIdVoice: 
-    AppVersion: 
+    AppVersion: FusionForecastPhysicsDemos2
     UseNameServer: 1
     FixedRegion: asia
     Server: 
@@ -24,7 +26,9 @@ MonoBehaviour:
     ProxyServer: 
     Protocol: 0
     EnableProtocolFallback: 1
-    AuthMode: 0
+    AuthMode: 2
     EnableLobbyStatistics: 0
+    NetworkLogging: 0
+    ClientLogging: 0
     encryptionMode: 0
     emptyRoomTtl: 0

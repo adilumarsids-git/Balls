@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &6924734720055343089
+--- !u!1 &1166358861691720659
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,6 +8,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
+<<<<<<< Updated upstream
   - component: {fileID: 1667190673316678912}
   - component: {fileID: 2565785972962849474}
   - component: {fileID: 2262371025355577879}
@@ -20,6 +21,21 @@ GameObject:
   - component: {fileID: -3986375305496973656}
   - component: {fileID: -388410387962324379}
   - component: {fileID: 6573959723260307520}
+=======
+  - component: {fileID: 1304684302100246030}
+  - component: {fileID: 4547913733529349706}
+  - component: {fileID: 1668854386354945037}
+  - component: {fileID: 2646818651997427753}
+  - component: {fileID: 3559808541737881783}
+  - component: {fileID: 8171928688411899340}
+  - component: {fileID: 7828713513729043965}
+  - component: {fileID: 6299869728573722135}
+  - component: {fileID: 1428985954318873061}
+  - component: {fileID: 4500265884844140821}
+  - component: {fileID: 2425656049102473562}
+  - component: {fileID: 3266080698283577001}
+  - component: {fileID: 2183094775412403505}
+>>>>>>> Stashed changes
   m_Layer: 0
   m_Name: PlayerBall
   m_TagString: Player
@@ -27,36 +43,36 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1667190673316678912
+--- !u!4 &1304684302100246030
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.11691, y: 0, z: -2.48174}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &2565785972962849474
+--- !u!33 &4547913733529349706
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
---- !u!23 &2262371025355577879
+--- !u!23 &1668854386354945037
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -98,14 +114,14 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!135 &8869131785959224988
+--- !u!135 &2646818651997427753
 SphereCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
-  m_Material: {fileID: 0}
+  m_GameObject: {fileID: 1166358861691720659}
+  m_Material: {fileID: 13400000, guid: 18e8419b1e9198f45a55142b11699458, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -119,13 +135,13 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.5
   m_Center: {x: 0, y: 0, z: 0}
---- !u!54 &6024851838389980821
+--- !u!54 &3559808541737881783
 Rigidbody:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   serializedVersion: 5
   m_Mass: 1
   m_LinearDamping: 0
@@ -141,18 +157,18 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 0
+  m_UseGravity: 1
   m_IsKinematic: 0
-  m_Interpolate: 0
+  m_Interpolate: 1
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &4117052583791421588
+--- !u!114 &8171928688411899340
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5967b0e68ce5aee47b1b592914ed42a3, type: 3}
@@ -161,95 +177,64 @@ MonoBehaviour:
   speedBonus: 0
   massBonus: 0
   sizeBonus: 0
---- !u!114 &2655810558898554722
+--- !u!114 &7828713513729043965
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 13e97883f4b4b45488c65e82bc718f20, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Project.Gameplay.Player.CombatPush.PlayerBumpResponder
-  bumpImpulse: 5
-  minImpactSpeed: 1.5
-  massInfluence: 0.6
---- !u!114 &5019044117521280590
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 612bbb586d17fd543a49eb8fc0b30c4a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Project.Gameplay.Player.Stats.PlayerBuffApplier
---- !u!114 &-4904921099284617301
+--- !u!114 &6299869728573722135
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 631bb50271409034587fe605f4dd8880, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Project.Gameplay.Player.PlayerTag
---- !u!114 &-3986375305496973656
+--- !u!114 &1428985954318873061
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: -1552182283, guid: e725a070cec140c4caffb81624c8c787, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
-  SortKey: 3866920822
-  ObjectInterest: 1
-  Flags: 262145
+  SortKey: 2457178173
+  SendPriority: 1
+  Flags: 262402
   NestedObjects: []
   NetworkedBehaviours:
+<<<<<<< Updated upstream
   - {fileID: -388410387962324379}
   - {fileID: 6573959723260307520}
+=======
+  - {fileID: 3266080698283577001}
+  - {fileID: 4500265884844140821}
+  - {fileID: 2425656049102473562}
+  - {fileID: 2183094775412403505}
+>>>>>>> Stashed changes
   ForceRemoteRenderTimeframe: 0
---- !u!114 &-388410387962324379
+--- !u!114 &4500265884844140821
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0a591d221a634417e9827eb58e17de84, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Fusion.Addons.Physics::Fusion.Addons.Physics.NetworkRigidbody3D
-  _stateAuthorityChangeErrorCorrectionDelta: 0
-  SyncScale: 1
-  SyncParent: 1
-  _interpolationTarget: {fileID: 0}
-  UsePreciseRotation: 0
-  UseRenderSleepThresholds: 1
-  RenderThresholds:
-    UseEnergy: 1
-    Position: 0.01
-    Rotation: 0.01
-    Scale: 0.01
---- !u!114 &6573959723260307520
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6924734720055343089}
+  m_GameObject: {fileID: 1166358861691720659}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3e8beb398f6e57647bf34857c6b26d31, type: 3}
@@ -257,3 +242,98 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Project.Networking.Fusion.NetworkPlayerController
   moveConfig: {fileID: 11400000, guid: c9c8d9f8a13369e47b3704051ccb90aa, type: 2}
   gameConfig: {fileID: 11400000, guid: 013bea5367083404fb67f22860c1b645, type: 2}
+<<<<<<< Updated upstream
+=======
+  steeringResponsiveness: 0.55
+  reverseResponsiveness: 0.35
+  highSpeedTurnReduction: 0.65
+  rollingResistance: 0.1
+  sidewaysGripMultiplier: 0.75
+  _PlayerName:
+    _length: 0
+    _data:
+      Data: 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+--- !u!114 &2425656049102473562
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1166358861691720659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c23b2a3d4e54c6f8a9b0c1d2e3f4a5b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  colorCatalog: {fileID: 11400000, guid: 6e7d28e0c8a34a84a8c0f2a8c63a88b5, type: 2}
+  targetRenderer: {fileID: 1668854386354945037}
+--- !u!114 &3266080698283577001
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1166358861691720659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 158639473, guid: e725a070cec140c4caffb81624c8c787, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkTransform
+  _stateAuthorityChangeErrorCorrectionDelta: 0
+  SyncScale: 0
+  SyncParent: 0
+  _autoAOIOverride: 1
+  ConfigFlags: 0
+  PhysicsSettings:
+    ForecastEnabled: 1
+    DebugPhysics: 1
+    GravityForecast: 2
+    MaxExtrapolationTime: 0.35
+    MinLinearDetectedError: 0.02
+    MinAngularDetectedError: 3
+    MaxLinearError: 0
+    MaxAngularError: 0
+    LowCorrectionProgressThreshold: 0.015
+    HighErrorSimilarityThreshold: 1
+    MaxErrorTotalTime: 0.5
+    MaxRemoteSleepIgnoreTime: 0.5
+    ErrorCorrectionType: 0
+    LinearVelCorrectionMul: 1
+    AngularVelCorrectionMul: 1
+    PositionCorrectionLerp: 0.15
+    RotationCorrectionLerp: 0.15
+    Spring: 75
+    Damper: 2
+    ImpactStartCorrectionTime: 0.1
+    ImpactCorrectionTimeComplete: 0.3
+--- !u!114 &2183094775412403505
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1166358861691720659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cbc10c124f41ff541a6058719ef4e5d5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: '::'
+  centerPoint: {fileID: 0}
+  centerPointName: CenterPoint
+  distanceBehindBall: 10
+  height: 10
+  positionLerp: 10
+  snapDistance: 8
+  lookAtCenter: 0
+  lookAtBallInstead: 1
+--- !u!1029 &8512756420842580546
+DefaultAsset:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: 
+  m_Message: This default asset was generated because the worker process has crashed
+    during last import.
+  m_IsWarning: 1
+>>>>>>> Stashed changes

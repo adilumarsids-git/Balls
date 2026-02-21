@@ -30,6 +30,213 @@
             which returns a list of nodes for a given LocalIdentifierInFile.
             </summary>
         </member>
+        <member name="T:Fusion.NetworkAssetSourceAddressable`1">
+            <summary>
+            An Addressables-based implementation of the asset source pattern. The asset is loaded from the Addressables system.
+            </summary>
+            <typeparam name="T"></typeparam>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceAddressable`1.Address">
+            <see cref="F:Fusion.NetworkAssetSourceAddressable`1.RuntimeKey"/>
+        </member>
+        <member name="F:Fusion.NetworkAssetSourceAddressable`1.RuntimeKey">
+            <summary>
+            Addressables runtime key. Can be used in any form Addressables supports, such as asset name, label, or address.
+            </summary>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceAddressable`1.Acquire(System.Boolean)">
+            <inheritdoc cref="M:Fusion.NetworkAssetSourceResource`1.Acquire(System.Boolean)"/>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceAddressable`1.Release">
+            <inheritdoc cref="M:Fusion.NetworkAssetSourceResource`1.Release"/>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceAddressable`1.IsCompleted">
+            <inheritdoc cref="P:Fusion.NetworkAssetSourceResource`1.IsCompleted"/>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceAddressable`1.WaitForResult">
+            <inheritdoc cref="M:Fusion.NetworkAssetSourceResource`1.WaitForResult"/>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceAddressable`1.Description">
+            <inheritdoc cref="P:Fusion.NetworkAssetSourceResource`1.Description"/>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceAddressable`1.EditorInstance">
+            <inheritdoc cref="P:Fusion.NetworkAssetSourceResource`1.EditorInstance"/>
+        </member>
+        <member name="T:Fusion.NetworkAssetSourceResource`1">
+            <summary>
+            Resources-based implementation of the asset source pattern.
+            </summary>
+            <typeparam name="T"></typeparam>
+        </member>
+        <member name="F:Fusion.NetworkAssetSourceResource`1.ResourcePath">
+            <summary>
+            Resource path. Note that this is a Unity resource path, not a file path.
+            </summary>
+        </member>
+        <member name="F:Fusion.NetworkAssetSourceResource`1.SubObjectName">
+            <summary>
+            Sub-object name. If empty, the main object is loaded.
+            </summary>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceResource`1.Acquire(System.Boolean)">
+            <summary>
+            Loads the asset. In synchronous mode, the asset is loaded immediately. In asynchronous mode, the asset is loaded in the background.
+            </summary>
+            <param name="synchronous"></param>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceResource`1.Release">
+            <summary>
+            Unloads the asset. If the asset is not loaded, an exception is thrown. If the asset is loaded multiple times, it is only
+            unloaded when the last acquire is released.
+            </summary>
+            <exception cref="T:System.Exception"></exception>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceResource`1.IsCompleted">
+            <summary>
+            Returns <see langword="true"/> if the asset is loaded.
+            </summary>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceResource`1.WaitForResult">
+            <summary>
+            Blocks until the asset is loaded. If the asset is not loaded, an exception is thrown.
+            </summary>
+            <returns>The loaded asset</returns>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceResource`1.Description">
+            <summary>
+            The description of the asset source. Used for debugging.
+            </summary>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceResource`1.EditorInstance">
+            <summary>
+            Returns the asset instance for Editor purposes. Does not call <see cref="M:Fusion.NetworkAssetSourceResource`1.Acquire(System.Boolean)"/>.
+            </summary>
+        </member>
+        <member name="T:Fusion.NetworkAssetSourceStatic`1">
+            <summary>
+            Hard reference-based implementation of the asset source pattern. This asset source forms a hard reference to the asset and never releases it.
+            This type is meant to be used at runtime. For edit-time, prefer <see cref="T:Fusion.NetworkAssetSourceStaticLazy`1"/>, as it delays
+            actually loading the asset, improving the editor performance.
+            </summary>
+            <typeparam name="T"></typeparam>
+        </member>
+        <member name="F:Fusion.NetworkAssetSourceStatic`1.Object">
+            <summary>
+            The asset reference. Can point to an asset or to a runtime-created object.
+            </summary>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceStatic`1.Prefab">
+            <see cref="F:Fusion.NetworkAssetSourceStatic`1.Object"/>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceStatic`1.IsCompleted">
+            <summary>
+            Returns <see langword="true"/>.
+            </summary>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceStatic`1.Acquire(System.Boolean)">
+            <summary>
+            Does nothing, the asset is always loaded.
+            </summary>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceStatic`1.Release">
+            <summary>
+            Does nothing, the asset is always loaded.
+            </summary>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceStatic`1.WaitForResult">
+            <summary>
+            Returns <seealso cref="F:Fusion.NetworkAssetSourceStatic`1.Object"/> or throws an exception if the reference is missing.
+            </summary>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceStatic`1.Description">
+            <inheritdoc cref="P:Fusion.NetworkAssetSourceResource`1.Description"/>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceStatic`1.EditorInstance">
+            <summary>
+            Returns <seealso cref="F:Fusion.NetworkAssetSourceStatic`1.Object"/>.
+            </summary>
+        </member>
+        <member name="T:Fusion.NetworkAssetSourceStaticLazy`1">
+            <summary>
+            An edit-time optimised version of <see cref="T:Fusion.NetworkAssetSourceStatic`1"/>, taking advantage of Unity's lazy loading of
+            assets. At runtime, this type behaves exactly like <see cref="T:Fusion.NetworkAssetSourceStatic`1"/>, except for the inability
+            to use runtime-created objects.
+            </summary>
+            <typeparam name="T"></typeparam>
+        </member>
+        <member name="F:Fusion.NetworkAssetSourceStaticLazy`1.Object">
+            <summary>
+            The asset reference. Can only point to an asset, runtime-created objects will not work.
+            </summary>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceStaticLazy`1.Prefab">
+            <inheritdoc cref="P:Fusion.NetworkAssetSourceStatic`1.Prefab"/>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceStaticLazy`1.IsCompleted">
+            <inheritdoc cref="P:Fusion.NetworkAssetSourceStatic`1.IsCompleted"/>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceStaticLazy`1.Acquire(System.Boolean)">
+            <inheritdoc cref="M:Fusion.NetworkAssetSourceStatic`1.Acquire(System.Boolean)"/>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceStaticLazy`1.Release">
+            <inheritdoc cref="M:Fusion.NetworkAssetSourceStatic`1.Release"/>
+        </member>
+        <member name="M:Fusion.NetworkAssetSourceStaticLazy`1.WaitForResult">
+            <inheritdoc cref="M:Fusion.NetworkAssetSourceStatic`1.WaitForResult"/>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceStaticLazy`1.Description">
+            <inheritdoc cref="P:Fusion.NetworkAssetSourceStatic`1.Description"/>
+        </member>
+        <member name="P:Fusion.NetworkAssetSourceStaticLazy`1.EditorInstance">
+            <inheritdoc cref="P:Fusion.NetworkAssetSourceStatic`1.EditorInstance"/>
+        </member>
+        <member name="T:Fusion.FusionGlobalScriptableObjectAddressAttribute">
+            <summary>
+            If applied at the assembly level, allows <see cref="T:Fusion.FusionGlobalScriptableObject`1"/> to be loaded with Addressables.
+            </summary>
+        </member>
+        <member name="M:Fusion.FusionGlobalScriptableObjectAddressAttribute.#ctor(System.Type,System.String)">
+            <param name="objectType">The type this attribute will attempt to load.</param>
+            <param name="address">The address to load from.</param>
+        </member>
+        <member name="P:Fusion.FusionGlobalScriptableObjectAddressAttribute.Address">
+            <summary>
+            The address to load from.
+            </summary>
+        </member>
+        <member name="M:Fusion.FusionGlobalScriptableObjectAddressAttribute.Load(System.Type)">
+            <summary>
+            Loads the asset from the <see cref="P:Fusion.FusionGlobalScriptableObjectAddressAttribute.Address"/>. Uses WaitForCompletion internally, so platforms that do not support it need
+            to preload the address prior to loading.
+            </summary>
+        </member>
+        <member name="T:Fusion.FusionGlobalScriptableObjectResourceAttribute">
+            <summary>
+            If applied at the assembly level, allows <see cref="T:Fusion.FusionGlobalScriptableObject`1"/> to be loaded with Resources.
+            There is a default registration for this attribute, which attempts to load the asset from Resources using path from
+            <see cref="T:Fusion.FusionGlobalScriptableObjectAttribute"/>.
+            </summary>
+        </member>
+        <member name="M:Fusion.FusionGlobalScriptableObjectResourceAttribute.#ctor(System.Type,System.String)">
+            <param name="objectType">The type this attribute will attempt to load.</param>
+            <param name="resourcePath">Resources path or <see langword="null"/>/empty if path from <see cref="T:Fusion.FusionGlobalScriptableObjectAttribute"/>
+            is to be used.</param>
+        </member>
+        <member name="P:Fusion.FusionGlobalScriptableObjectResourceAttribute.ResourcePath">
+            <summary>
+            Path in Resources.
+            </summary>
+        </member>
+        <member name="P:Fusion.FusionGlobalScriptableObjectResourceAttribute.InstantiateIfLoadedInEditor">
+            <summary>
+            If loaded in the editor, should the result be instantiated instead of returning the asset itself? The default is <see langword="true"/>. 
+            </summary>
+        </member>
+        <member name="M:Fusion.FusionGlobalScriptableObjectResourceAttribute.Load(System.Type)">
+            <summary>
+            Loads the asset from Resources synchronously.
+            </summary>
+        </member>
         <member name="P:Fusion.Statistics.FusionNetworkObjectStatsGraphCombine.NetworkObjectID">
             <summary>
             Gets the unique identifier of the network object.
@@ -41,11 +248,6 @@
         <member name="T:Fusion.Statistics.CanvasAnchor">
             <summary>
             The side to attach the statistics panel anchor.
-            </summary>
-        </member>
-        <member name="F:Fusion.Statistics.FusionStatistics._statsEnabled">
-            <summary>
-            Flags controlling which Mecanim data will be synced.
             </summary>
         </member>
         <member name="P:Fusion.Statistics.FusionStatistics.IsPanelActive">
@@ -279,47 +481,19 @@
             Finds visual/audio nested components on this GameObject and its children, and adds them to the Components collection.
             </summary>
         </member>
-        <member name="F:Fusion.FusionUnityLogger.UseGlobalPrefix">
-            <summary>
-            If true, all messages will be prefixed with [Fusion] tag
-            </summary>
-        </member>
-        <member name="F:Fusion.FusionUnityLogger.UseColorTags">
-            <summary>
-            If true, some parts of messages will be enclosed with &lt;color&gt; tags.
-            </summary>
-        </member>
-        <member name="F:Fusion.FusionUnityLogger.AddHashCodePrefix">
-            <summary>
-            If true, each log message that has a source parameter will be prefixed with a hash code of the source object. 
-            </summary>
-        </member>
-        <member name="F:Fusion.FusionUnityLogger.GlobalPrefixColor">
-            <summary>
-            Color of the global prefix (see <see cref="F:Fusion.FusionUnityLogger.UseGlobalPrefix"/>).
-            </summary>
-        </member>
-        <member name="F:Fusion.FusionUnityLogger.MinRandomColor">
-            <summary>
-            Min Random Color
-            </summary>
-        </member>
-        <member name="F:Fusion.FusionUnityLogger.MaxRandomColor">
-            <summary>
-            Max Random Color
-            </summary>
-        </member>
-        <member name="F:Fusion.FusionUnityLogger.ServerColor">
-            <summary>
-            Server Color
-            </summary>
-        </member>
         <member name="T:Fusion.RunnerEnableVisibility">
             <summary>
               When running in Multi-Peer mode, this component automatically will register the associated
               <see cref="T:Fusion.NetworkRunner" /> with <see cref="T:Fusion.NetworkRunnerVisibilityExtensions" />,
               and will automatically attach loaded scene objects and spawned objects with the peers visibility handling.
             </summary>
+        </member>
+        <member name="M:Fusion.NetworkObjectBaker.PostprocessBehaviour(Fusion.SimulationBehaviour)">
+            <summary>
+            Postprocesses the behaviour. Returns true if the object was marked dirty.
+            </summary>
+            <param name="behaviour"></param>
+            <returns></returns>
         </member>
         <member name="T:Fusion.RunnerAOIGizmos">
             <summary>
@@ -331,6 +505,112 @@
         <member name="T:Fusion.RunnerVisibilityLinksRoot">
             <summary>
             Flag component which indicates a NetworkObject has already been factored into a Runner's VisibilityNode list.
+            </summary>
+        </member>
+        <member name="T:Fusion.JsonUtilityExtensions">
+            <summary>
+            Extends capabilities of <see cref="T:UnityEngine.JsonUtility"/> by adding type annotations to the serialized JSON, Unity object reference
+            handling and integer enquotement.
+            </summary>
+        </member>
+        <member name="T:Fusion.JsonUtilityExtensions.TypeResolverDelegate">
+            <see cref="M:Fusion.JsonUtilityExtensions.FromJsonWithTypeAnnotation(System.String,Fusion.JsonUtilityExtensions.TypeResolverDelegate)"/>
+        </member>
+        <member name="T:Fusion.JsonUtilityExtensions.TypeSerializerDelegate">
+            <see cref="M:Fusion.JsonUtilityExtensions.ToJsonWithTypeAnnotation(System.Object,Fusion.JsonUtilityExtensions.InstanceIDHandlerDelegate)"/>
+        </member>
+        <member name="T:Fusion.JsonUtilityExtensions.InstanceIDHandlerDelegate">
+            <see cref="M:Fusion.JsonUtilityExtensions.ToJsonWithTypeAnnotation(System.Object,Fusion.JsonUtilityExtensions.InstanceIDHandlerDelegate)"/>
+        </member>
+        <member name="M:Fusion.JsonUtilityExtensions.EnquoteIntegers(System.String,System.Int32)">
+            <summary>
+            Enquotes integers in the JSON string that are at least <paramref name="minDigits"/> long. This is useful for parsers that
+            interpret large integers as floating point numbers.
+            </summary>
+            <param name="json">JSON to process</param>
+            <param name="minDigits">Digit threshold to perfom the enquoting</param>
+            <returns><paramref name="json"/> with long integers enquoted.</returns>
+        </member>
+        <member name="M:Fusion.JsonUtilityExtensions.ToJsonWithTypeAnnotation(System.Object,Fusion.JsonUtilityExtensions.InstanceIDHandlerDelegate)">
+            <summary>
+            Converts the object to JSON with type annotations.
+            </summary>
+            <param name="obj">Object to be serialized.</param>
+            <param name="instanceIDHandler">Handler for UnityEngine.Object references. If the handler returns an empty string,
+            the reference is removed from the final result.</param>
+        </member>
+        <member name="M:Fusion.JsonUtilityExtensions.ToJsonWithTypeAnnotation(System.Object,System.IO.TextWriter,System.Nullable{System.Int32},Fusion.JsonUtilityExtensions.TypeSerializerDelegate,Fusion.JsonUtilityExtensions.InstanceIDHandlerDelegate)">
+            <summary>
+            Converts the object/IList to JSON with type annotations.
+            </summary>
+            <param name="obj">Object to be serialized.</param>
+            <param name="writer">The output TextWriter.</param>
+            <param name="integerEnquoteMinDigits"><see cref="M:Fusion.JsonUtilityExtensions.EnquoteIntegers(System.String,System.Int32)"/></param>
+            <param name="typeSerializer">Handler for obtaining serialized type names. If <see langword="null"/>, the short assembly
+            qualified name (namespace + name + assembly name) will be used.</param>
+            <param name="instanceIDHandler">Handler for UnityEngine.Object references. If the handler returns an empty string,
+            the reference is removed from the final result.</param>
+        </member>
+        <member name="M:Fusion.JsonUtilityExtensions.FromJsonWithTypeAnnotation``1(System.String,Fusion.JsonUtilityExtensions.TypeResolverDelegate)">
+            <summary>
+            Converts JSON with type annotation to an instance of <typeparamref name="T"/>. If the JSON contains type annotations, they need to match
+            the expected result type. If there are no type annotations, use <paramref name="typeResolver"/> to return the expected type.
+            </summary>
+            <param name="json">JSON to be parsed</param>
+            <param name="typeResolver">Converts type name to a type instance.</param>
+        </member>
+        <member name="M:Fusion.JsonUtilityExtensions.FromJsonWithTypeAnnotation(System.String,Fusion.JsonUtilityExtensions.TypeResolverDelegate)">
+            <summary>
+            Converts JSON with type annotation. If there are no type annotations, use <paramref name="typeResolver"/> to return the expected type.
+            </summary>
+            <param name="json">JSON to be parsed</param>
+            <param name="typeResolver">Converts type name to a type instance.</param>
+        </member>
+        <member name="T:Fusion.FusionAddressablesUtils">
+            <summary>
+            Utility class for addressables.
+            </summary>
+        </member>
+        <member name="M:Fusion.FusionAddressablesUtils.TryParseAddress(System.String,System.String@,System.String@)">
+            <summary>
+            Tries to parse the address into main part and sub object name.
+            </summary>
+            <param name="address">The address to parse.</param>
+            <param name="mainPart">The main part of the address.</param>
+            <param name="subObjectName">The sub object name.</param>
+            <returns><see langword="true"/> if the address is successfully parsed; otherwise, <see langword="false"/>.</returns>
+        </member>
+        <member name="M:Fusion.FusionAddressablesUtils.CreateAssetReference(System.String)">
+            <summary>
+            Creates an asset reference from the given address.
+            </summary>
+            <param name="address">The address to create the asset reference from.</param>
+            <returns>The created asset reference.</returns>
+            <exception cref="T:System.ArgumentException">Thrown when the main part of the address is not a guid or the address is not valid.</exception>
+        </member>
+        <member name="M:Fusion.FusionAddressablesUtils.LoadEditorInstance(System.String)">
+            <summary>
+            Loads the editor instance for the given runtime key.
+            </summary>
+            <param name="runtimeKey">The runtime key.</param>
+            <returns>The loaded editor instance.</returns>
+            <exception cref="T:System.InvalidOperationException">Thrown when the load editor instance handler is not set.</exception>
+        </member>
+        <member name="M:Fusion.FusionAddressablesUtils.SetLoadEditorInstanceHandler(System.Func{System.String,UnityEngine.Object})">
+            <summary>
+            Sets the load editor instance handler.
+            </summary>
+            <param name="loadEditorInstance">The load editor instance handler.</param>
+        </member>
+        <member name="T:Fusion.FusionLogInitializer">
+            <summary>
+            Initializes the logging system for Fusion. Use <see cref="M:Fusion.FusionLogInitializer.InitializeUser(Fusion.LogLevel@,Fusion.TraceChannels@)"/> to completely override the log level and trace channels or
+            to provide a custom logger. Use <see cref="M:Fusion.FusionLogInitializer.InitializeUnityLoggerUser(Fusion.FusionUnityLogger@)"/> to override default Unity logger settings.
+            </summary>
+        </member>
+        <member name="M:Fusion.FusionLogInitializer.Initialize">
+            <summary>
+            Initializes the logging system for Fusion. This method is called automatically when the assembly is loaded.
             </summary>
         </member>
         <member name="T:Fusion.FusionMppmStatus">
@@ -377,6 +657,13 @@
             <param name="data"></param>
             <typeparam name="T"></typeparam>
         </member>
+        <member name="M:Fusion.FusionMppm.Broadcast``1(``0)">
+            <summary>
+            Broadcasts a command to all virtual instances.
+            </summary>
+            <typeparam name="T"></typeparam>
+            <param name="data"></param>
+        </member>
         <member name="T:Fusion.FusionMppmCommand">
             <summary>
             The base class for all Fusion MPPM commands.
@@ -395,6 +682,37 @@
         <member name="P:Fusion.FusionMppmCommand.PersistentKey">
             <summary>
             If the command is persistent (i.e. needs to be executed on each domain reload), this key is used to store it.
+            </summary>
+        </member>
+        <member name="T:Fusion.FusionMppmRegisterCustomDependencyCommand">
+            <summary>
+            A command implementing a workaround for MPPM not syncing custom dependencies.
+            </summary>
+        </member>
+        <member name="F:Fusion.FusionMppmRegisterCustomDependencyCommand.DependencyName">
+            <summary>
+            Name of the custom dependency.
+            </summary>
+        </member>
+        <member name="F:Fusion.FusionMppmRegisterCustomDependencyCommand.Hash">
+            <summary>
+            Hash of the custom dependency.
+            </summary>
+        </member>
+        <member name="P:Fusion.FusionMppmRegisterCustomDependencyCommand.NeedsAck">
+            <inheritdoc cref="P:Fusion.FusionMppmCommand.NeedsAck"/>
+        </member>
+        <member name="P:Fusion.FusionMppmRegisterCustomDependencyCommand.PersistentKey">
+            <inheritdoc cref="P:Fusion.FusionMppmCommand.PersistentKey"/>
+        </member>
+        <member name="M:Fusion.FusionMppmRegisterCustomDependencyCommand.Execute">
+            <summary>
+            Registers a custom dependency with the given name and hash.
+            </summary>
+        </member>
+        <member name="T:Fusion.FusionUnityExtensions">
+            <summary>
+            Provides backwards compatibility for Unity API.
             </summary>
         </member>
         <member name="T:Fusion.FusionBootstrapDebugGUI">
@@ -703,6 +1021,22 @@
             <summary>
             If enabled, the provider will delay acquiring a prefab instance if the scene manager is busy.
             </summary>
+        </member>
+        <member name="T:Fusion.FusionUnityLogger">
+            <summary>
+            Fusion logger implementation for Unity.
+            </summary>
+        </member>
+        <member name="F:Fusion.FusionUnityLogger.LogActiveRunnerTick">
+            <summary>
+            Is true, the active runner's tick will be logged.
+            </summary>
+        </member>
+        <member name="M:Fusion.FusionUnityLogger.#ctor(System.Threading.Thread,System.Boolean)">
+            <inheritdoc/>
+        </member>
+        <member name="M:Fusion.FusionUnityLogger.CreateMessage(Fusion.FusionUnityLoggerBase.LogContext@)">
+            <inheritdoc/>
         </member>
         <member name="T:Fusion.IRunnerVisibilityRecognizedType">
             <summary>

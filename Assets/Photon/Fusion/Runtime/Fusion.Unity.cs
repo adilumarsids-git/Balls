@@ -356,7 +356,7 @@ namespace Fusion {
     public T Object;
     
     /// <see cref="Object"/>
-    [Obsolete("Use Asset instead")]
+    [Obsolete("Use Object instead")]
     public T Prefab {
       get => Object;
       set => Object = value;
@@ -503,6 +503,7 @@ namespace Fusion {
 
 namespace Fusion {
   using System;
+  using System.Threading.Tasks;
   using UnityEngine.Scripting;
 #if (FUSION_ADDRESSABLES || FUSION_ENABLE_ADDRESSABLES) && !FUSION_DISABLE_ADDRESSABLES 
   using UnityEngine.AddressableAssets;
@@ -549,6 +550,31 @@ namespace Fusion {
       return default;
 #endif
     }
+
+    /// <summary>
+    /// Loads the asset from the <see cref="Address"/>.
+    /// </summary>
+    public override Task<FusionGlobalScriptableObjectLoadResult> LoadAsync(Type type) {
+#if (FUSION_ADDRESSABLES || FUSION_ENABLE_ADDRESSABLES) && !FUSION_DISABLE_ADDRESSABLES
+      Assert.Check(!string.IsNullOrEmpty(Address));
+      
+      var tcs = new TaskCompletionSource<FusionGlobalScriptableObjectLoadResult>();
+      
+      var op = Addressables.LoadAssetAsync<FusionGlobalScriptableObject>(Address);
+      op.Completed += _op => {
+        if (_op.Status == AsyncOperationStatus.Succeeded) {
+          tcs.SetResult(new(_op.Result, _ => Addressables.Release(_op)));
+        } else {
+          LogTrace?.Log($"Failed to load addressable at address {Address} for type {type.FullName}: {op.OperationException}");
+          tcs.SetException(_op.OperationException);
+        }
+      };
+      return tcs.Task;
+#else
+      LogTrace?.Log($"Addressables are not enabled. Unable to load addressable for {type.FullName}");
+      return default;
+#endif
+    }
   }
 }
 
@@ -561,6 +587,7 @@ namespace Fusion {
   using System;
   using System.IO;
   using System.Reflection;
+  using System.Threading.Tasks;
   using UnityEngine;
   using UnityEngine.Scripting;
   using Object = UnityEngine.Object;
@@ -597,24 +624,9 @@ namespace Fusion {
       var attribute = type.GetCustomAttribute<FusionGlobalScriptableObjectAttribute>();
       Assert.Check(attribute != null);
 
-      string resourcePath;
-      if (string.IsNullOrEmpty(ResourcePath)) {
-        string defaultAssetPath = attribute.DefaultPath;
-        var indexOfResources = defaultAssetPath.LastIndexOf("/Resources/", StringComparison.OrdinalIgnoreCase);
-        if (indexOfResources < 0) {
-          LogTrace?.Log($"The default path {defaultAssetPath} does not contain a /Resources/ folder. Unable to load resource for {type.FullName}.");
-          return default;
-        }
-
-        // try to load from resources, maybe?
-        resourcePath = defaultAssetPath.Substring(indexOfResources + "/Resources/".Length);
-
-        // drop the extension
-        if (Path.HasExtension(resourcePath)) {
-          resourcePath = resourcePath.Substring(0, resourcePath.LastIndexOf('.'));
-        }
-      } else {
-        resourcePath = ResourcePath;
+      var resourcePath = GetResourcePath(type, attribute); 
+      if (resourcePath == null) {
+        return default;
       }
 
       var instance = UnityEngine.Resources.Load(resourcePath, type);
@@ -623,11 +635,71 @@ namespace Fusion {
         return default;
       }
 
+      return HandleInstance(instance);
+    }
+
+    /// <summary>
+    /// Loads the asset from Resources asynchronously.
+    /// </summary>
+    public override System.Threading.Tasks.Task<FusionGlobalScriptableObjectLoadResult> LoadAsync(Type type) {
+      var attribute = type.GetCustomAttribute<FusionGlobalScriptableObjectAttribute>();
+      Assert.Check(attribute != null);
+
+      var tcs = new TaskCompletionSource<FusionGlobalScriptableObjectLoadResult>();
+      
+      var resourcePath = GetResourcePath(type, attribute); 
+      if (resourcePath == null) {
+        tcs.SetResult(default);
+      } else {
+        var request = UnityEngine.Resources.LoadAsync(resourcePath, type);
+        if (request == null) {
+          LogTrace?.Log($"Unable to load resource at path {resourcePath} for type {type.FullName}");
+          tcs.SetResult(default);
+        } else {
+          request.completed += op => {
+            var instance = ((ResourceRequest)op).asset;
+            if (instance) {
+              tcs.SetResult(HandleInstance(instance));  
+            } else {
+              LogTrace?.Log($"Unable to load resource at path {resourcePath} for type {type.FullName}");
+              tcs.SetResult(default);
+            }
+          };
+        }
+      }
+
+      return tcs.Task;
+    }
+
+    string GetResourcePath(Type type, FusionGlobalScriptableObjectAttribute attribute) {
+      if (string.IsNullOrEmpty(ResourcePath)) {
+        string defaultAssetPath = attribute.DefaultPath;
+        var indexOfResources = defaultAssetPath.LastIndexOf("/Resources/", StringComparison.OrdinalIgnoreCase);
+        if (indexOfResources < 0) {
+          LogTrace?.Log($"The default path {defaultAssetPath} does not contain a /Resources/ folder. Unable to load resource for {type.FullName}.");
+          return null;
+        }
+
+        // try to load from resources, maybe?
+        var resourcePath = defaultAssetPath.Substring(indexOfResources + "/Resources/".Length);
+
+        // drop the extension
+        if (Path.HasExtension(resourcePath)) {
+          return resourcePath.Substring(0, resourcePath.LastIndexOf('.'));
+        } else {
+          return resourcePath;
+        }
+      } else {
+        return ResourcePath;
+      }
+    }
+    
+    FusionGlobalScriptableObjectLoadResult HandleInstance(Object instance) {
       if (InstantiateIfLoadedInEditor && Application.isEditor) {
         var clone = Object.Instantiate(instance);
         return new((FusionGlobalScriptableObject)clone, x => Object.Destroy(clone));
       } else {
-        return new((FusionGlobalScriptableObject)instance, x => UnityEngine.Resources.UnloadAsset(instance));  
+        return new((FusionGlobalScriptableObject)instance, x => UnityEngine.Resources.UnloadAsset(instance));
       }
     }
   }
@@ -712,6 +784,98 @@ namespace Fusion {
     }
   }
 }
+
+#endregion
+
+
+#region Assets/Photon/Fusion/Runtime/FusionLogConstants.cs
+
+
+
+namespace Fusion {
+  static class FusionLogConstants {
+
+    public const LogLevel DefinedLogLevel =
+#if FUSION_LOGLEVEL_DEBUG || FUSION_LOGLEVEL_TRACE
+      LogLevel.Debug;
+#elif FUSION_LOGLEVEL_INFO
+      LogLevel.Info;
+#elif FUSION_LOGLEVEL_WARN
+      LogLevel.Warn;
+#elif FUSION_LOGLEVEL_ERROR
+      LogLevel.Error;
+#elif FUSION_LOGLEVEL_NONE
+      LogLevel.None;
+#elif UNITY_EDITOR
+      LogLevel.Error;
+#elif DEBUG
+      LogLevel.Debug;
+#else
+      LogLevel.Error;
+#endif
+
+    public const TraceChannels DefinedTraceChannels = 0
+#if FUSION_TRACE_GLOBAL
+      | TraceChannels.Global
+#endif
+#if FUSION_TRACE_STUN
+      | TraceChannels.Stun
+#endif
+#if FUSION_TRACE_OBJECT
+      | TraceChannels.Object
+#endif
+#if FUSION_TRACE_NETWORK
+      | TraceChannels.Network
+#endif
+#if FUSION_TRACE_PREFAB
+      | TraceChannels.Prefab
+#endif
+#if FUSION_TRACE_SCENEINFO
+      | TraceChannels.SceneInfo
+#endif
+#if FUSION_TRACE_SCENEMANAGER
+      | TraceChannels.SceneManager
+#endif
+#if FUSION_TRACE_SIMULATIONMESSAGE
+      | TraceChannels.SimulationMessage
+#endif
+#if FUSION_TRACE_HOSTMIGRATION
+      | TraceChannels.HostMigration
+#endif
+#if FUSION_TRACE_ENCRYPTION
+      | TraceChannels.Encryption
+#endif
+#if FUSION_TRACE_DUMMYTRAFFIC
+      | TraceChannels.DummyTraffic
+#endif
+#if FUSION_TRACE_REALTIME
+      | TraceChannels.Realtime
+#endif
+#if FUSION_TRACE_MEMORYTRACK
+      | TraceChannels.MemoryTrack
+#endif
+#if FUSION_TRACE_AREAOFINTEREST
+      | TraceChannels.AreaOfInterest
+#endif
+#if FUSION_TRACE_SNAPSHOTS
+      | TraceChannels.Snapshots
+#endif
+#if FUSION_TRACE_TIME
+      | TraceChannels.Time
+#endif
+#if FUSION_TRACE_SENDRECV
+      | TraceChannels.SendRecv
+#endif
+#if FUSION_TRACE_POOLS
+      | TraceChannels.Pools
+#endif
+#if FUSION_TRACE_PARENT
+      | TraceChannels.Parent
+#endif
+      ;
+  }
+}
+
 
 #endregion
 
@@ -854,210 +1018,37 @@ namespace Fusion {
 #endregion
 
 
-#region Assets/Photon/Fusion/Runtime/FusionProfiler.cs
+#region Assets/Photon/Fusion/Runtime/FusionLogInitializer.Realtime.cs
 
-namespace Fusion {
-  using System;
-  using System.Collections.Generic;
-  using System.Diagnostics;
-  using System.Linq;
-  using Unity.Collections.LowLevel.Unsafe;
-  using Unity.Profiling;
-  using Unity.Profiling.LowLevel;
-  using Unity.Profiling.LowLevel.Unsafe;
-  using UnityEngine;
-  using Object = System.Object;
+﻿namespace Fusion {
+  using Photon.Realtime;
 
-  public static class FusionProfiler {
-    [RuntimeInitializeOnLoadMethod]
-    static void Init() {
-      Fusion.EngineProfiler.InterpolationOffsetCallback = f => SetCounter(InterpolationOffset, f);
+  partial class FusionLogInitializer {
+    static partial void InitializePartial(LogLevel logLevel, TraceChannels traceChannels) {
+      // Check if Realtime Trace is set
+      var targetLevel = traceChannels.HasFlag(TraceChannels.Realtime) ? logLevel : LogLevel.None;
 
-      Fusion.EngineProfiler.ResimulationsCallback = i => SetCounter(Resimulations, i);
-      Fusion.EngineProfiler.WorldSnapshotSizeCallback = i => SetCounter(WorldSnapshotSize, i);
-
-      Fusion.EngineProfiler.RoundTripTimeCallback = f => SetCounter(RoundTripTime, f);
-
-      Fusion.EngineProfiler.InputSizeCallback = i => SetCounter(InputSize, i);
-      Fusion.EngineProfiler.InputQueueCallback = i => SetCounter(InputQueue, i);
-
-      Fusion.EngineProfiler.RpcInCallback = i => SetCounterValue(RpcIn, i, true);
-      Fusion.EngineProfiler.RpcOutCallback = i => SetCounterValue(RpcOut, i, true);
-      
-      Fusion.EngineProfiler.InputRecvDeltaCallback = f => SetCounter(InputRecvDelta, f);
-      Fusion.EngineProfiler.InputRecvDeltaDeviationCallback = f => SetCounter(InputRecvDeltaDeviation, f);
-
-      foreach (var counter in AllocCounters.Values) {
-        SetCounterValue(counter.Count, 0);
-        SetCounterValue(counter.Size, 0);
+      if (PhotonAppSettings.TryGetGlobal(out var global)) {
+        // Setup Realtime Logging Level
+        global.AppSettings.ClientLogging =
+          global.AppSettings.NetworkLogging = targetLevel switch {
+            LogLevel.Info => global::Photon.Client.LogLevel.Info,
+            LogLevel.Debug => global::Photon.Client.LogLevel.Debug,
+            LogLevel.Warn => global::Photon.Client.LogLevel.Warning,
+            LogLevel.Error => global::Photon.Client.LogLevel.Error,
+            LogLevel.None => global::Photon.Client.LogLevel.Off,
+            _ => global::Photon.Client.LogLevel.Off,
+          };
       }
 
-      SetCounterValue(ObjectAllocatorUsage, 0);
-      SetCounterValue(MiscAllocatorUsage, 0);
-      
-      Fusion.EngineProfiler.InternalObjectAllocatedCallback = (typeId, size) => {
-        var entry = AllocCounters[typeId];
-        SetCounterValue(entry.Count, 1, true);
-        SetCounterValue(entry.Size, size, true);
-        SetCounterValue(typeId == EngineProfiler.InternalSimulationType.Object ? ObjectAllocatorUsage : MiscAllocatorUsage, size, true);
-      };
-      
-      Fusion.EngineProfiler.InternalObjectFreedCallback = (typeId, size) => {
-        var entry = AllocCounters[typeId];
-        SetCounterValue(entry.Count, -1, true);
-        SetCounterValue(entry.Size, -size, true);
-        SetCounterValue(typeId == EngineProfiler.InternalSimulationType.Object ? ObjectAllocatorUsage : MiscAllocatorUsage, -size, true);
-      };
-
-      Fusion.EngineProfiler.PacketInCallback = info => {
-        SetCounterValue(PacketIn.Updates, info.ObjectUpdates, delta: true);
-        SetCounterValue(PacketIn.Destroys, info.ObjectDestroys, delta: true);
-        SetCounterValue(PacketIn.Count, 1, delta: true);
-      };
-      
-      Fusion.EngineProfiler.PacketOutCallback = info => {
-        SetCounterValue(PacketOut.Updates, info.ObjectUpdates, delta: true);
-        SetCounterValue(PacketOut.Destroys, info.ObjectDestroys, delta: true);
-        SetCounterValue(PacketOut.Count, 1, delta: true);
-      };
-      
-      Fusion.EngineProfiler.PacketLostCallback = info => {
-        SetCounterValue(PacketLost.Updates, info.ObjectUpdates, delta: true);
-        SetCounterValue(PacketLost.Destroys, info.ObjectDestroys, delta: true);
-        SetCounterValue(PacketLost.Count, 1, delta: true);
-      };
-      
-      Fusion.EngineProfiler.PacketDeliveredCallback = info => {
-        SetCounterValue(PacketDelivered.Updates, info.ObjectUpdates, delta: true);
-        SetCounterValue(PacketDelivered.Destroys, info.ObjectDestroys, delta: true);
-        SetCounterValue(PacketDelivered.Count, 1, delta: true);
-      };
-
-      Fusion.EngineProfiler.UDPPacketsOutCallback = count => {
-        SetCounterValue(UDPPackets, count, delta: true);
-      };
-    }
-
-    public static readonly ProfilerCategory Category       = ProfilerCategory.Scripts;
-
-    public static readonly IntPtr InterpolationOffset = CreateCounter("F Interp Offset", ProfilerMarkerDataType.Float, ProfilerMarkerDataUnit.Count);
-
-    public static readonly IntPtr InputSize  = CreateCounter("F Client Input Size", ProfilerMarkerDataType.Int32, ProfilerMarkerDataUnit.Bytes);
-    public static readonly IntPtr InputQueue = CreateCounter("F Client Input Queue", ProfilerMarkerDataType.Int32, ProfilerMarkerDataUnit.Count);
-
-    public static readonly IntPtr WorldSnapshotSize = CreateCounter("F Client Snapshot Size", ProfilerMarkerDataType.Int32, ProfilerMarkerDataUnit.Bytes);
-    public static readonly IntPtr Resimulations     = CreateCounter("F Client Resims", ProfilerMarkerDataType.Int32, ProfilerMarkerDataUnit.Count);
-    public static readonly IntPtr RoundTripTime     = CreateCounter("F Client RTT", ProfilerMarkerDataType.Float, ProfilerMarkerDataUnit.Count);
-
-    public static readonly IntPtr RpcIn  = CreateCounterValue("F RPCs In", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.FlushOnEndOfFrame | ProfilerCounterOptions.ResetToZeroOnFlush);
-    public static readonly IntPtr RpcOut = CreateCounterValue("F RPCs Out", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.FlushOnEndOfFrame | ProfilerCounterOptions.ResetToZeroOnFlush);
-
-    public static readonly IntPtr InputRecvDelta = CreateCounter("F Input Recv Delta", ProfilerMarkerDataType.Float, ProfilerMarkerDataUnit.Count);
-    public static readonly IntPtr InputRecvDeltaDeviation = CreateCounter("F Input Recv Delta Dev", ProfilerMarkerDataType.Float, ProfilerMarkerDataUnit.Count);
-
-    static readonly Dictionary<EngineProfiler.InternalSimulationType, (IntPtr Count, IntPtr Size)> AllocCounters = typeof(EngineProfiler.InternalSimulationType).GetEnumValues()
-      .Cast<EngineProfiler.InternalSimulationType>()
-      .ToDictionary(x => x, x => {
-        var count = CreateCounterValue($"F {x} Count", ProfilerMarkerDataUnit.Count);
-        var size = CreateCounterValue($"F {x} Size", ProfilerMarkerDataUnit.Bytes);
-        SetCounterValue(count, 0);
-        SetCounterValue(count, 0);
-        return (count, size);
-      });
-
-    public static readonly IntPtr ObjectAllocatorUsage = CreateCounterValue("F Object Allocator", ProfilerMarkerDataUnit.Bytes);
-    public static readonly IntPtr MiscAllocatorUsage   = CreateCounterValue("F Misc Allocator", ProfilerMarkerDataUnit.Bytes);
-
-    public static readonly (IntPtr Updates, IntPtr Destroys, IntPtr Count) PacketIn = (
-      CreateCounterValue("F Objects In", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame),
-      CreateCounterValue("F Destroys In", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame),
-      CreateCounterValue("F Packet In", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame)
-    );
-
-    public static readonly (IntPtr Updates, IntPtr Destroys, IntPtr Count) PacketOut = (
-      CreateCounterValue("F Objects Out", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame),
-      CreateCounterValue("F Destroys Out", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame),
-      CreateCounterValue("F Packet Out", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame)
-    );
-    
-    public static readonly (IntPtr Updates, IntPtr Destroys, IntPtr Count) PacketLost = (
-      CreateCounterValue("F Objects Lost", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame),
-      CreateCounterValue("F Destroys Lost", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame),
-      CreateCounterValue("F Packet Lost", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame)
-    );
-    
-    public static readonly (IntPtr Updates, IntPtr Destroys, IntPtr Count) PacketDelivered = (
-      CreateCounterValue("F Objects Delivered", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame),
-      CreateCounterValue("F Destroys Delivered", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame),
-      CreateCounterValue("F Packet Delivered", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame)
-    );
-
-    static readonly IntPtr UDPPackets = CreateCounterValue("F UDP Packets", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
-
-    static IntPtr CreateCounter(string name, ProfilerMarkerDataType dataType, ProfilerMarkerDataUnit unit) {
-#if ENABLE_PROFILER
-      var marker = ProfilerUnsafeUtility.CreateMarker(name, ProfilerCategory.Scripts, MarkerFlags.Counter, 1);
-      ProfilerUnsafeUtility.SetMarkerMetadata(marker, 0, null, (byte)dataType, (byte)unit);
-      return marker;
-#else
-      return default;
-#endif
-    }
-    
-    static IntPtr CreateCounterValue(string name, ProfilerMarkerDataUnit unit, ProfilerCounterOptions options = ProfilerCounterOptions.FlushOnEndOfFrame) {
-#if ENABLE_PROFILER
-      var flags = ProfilerCounterOptions.FlushOnEndOfFrame | options;
-      unsafe {
-        var ptr = ProfilerUnsafeUtility.CreateCounterValue(out _, name, ProfilerUnsafeUtility.CategoryScripts, MarkerFlags.Default, (byte)ProfilerMarkerDataType.Int32, (byte)unit, sizeof(int), flags);
-        return (new IntPtr(ptr));  
-      }
-#else
-      return default;
-#endif
-    }
-
-    [Conditional("ENABLE_PROFILER")]
-    static void SetCounter(IntPtr counter, int value) {
-      if (counter == default) {
-        return;
-      }
-      unsafe {
-        var data = new ProfilerMarkerData {
-          Type = (byte)ProfilerMarkerDataType.Int32,
-          Size = sizeof(int),
-          Ptr = UnsafeUtility.AddressOf(ref value)
-        };
-        ProfilerUnsafeUtility.SingleSampleWithMetadata(counter, 1, &data);
-      }
-    }
-    
-    [Conditional("ENABLE_PROFILER")]
-    static void SetCounter(IntPtr counter, float value) {
-      if (counter == default) {
-        return;
-      }
-      unsafe {
-        var data = new ProfilerMarkerData {
-          Type = (byte)ProfilerMarkerDataType.Float,
-          Size = sizeof(float),
-          Ptr = UnsafeUtility.AddressOf(ref value)
-        };
-        ProfilerUnsafeUtility.SingleSampleWithMetadata(counter, 1, &data);
-      }
-    }
-    
-    [Conditional("ENABLE_PROFILER")]
-    static void SetCounterValue(IntPtr counter, int value, bool delta = false) {
-      if (counter == default) {
-        return;
-      }
-      unsafe {
-        if (delta) {
-          *(int*)counter += value;
-        } else {
-          *(int*)counter = value;
-        }
-      }
+      // Redirect Realtime Logs to use Fusion Trace Logs
+      global::Photon.Realtime.Log.Init(
+        msg => { Log.TraceRealtimeError(msg); },
+        msg => { Log.TraceRealtimeWarn(msg); },
+        msg => { Log.TraceRealtime(msg); },
+        msg => { Log.TraceRealtime(msg); },
+        (exp, msg) => { Log.TraceRealtimeError($"{msg}. {exp}"); }
+      );
     }
   }
 }
@@ -1070,89 +1061,16 @@ namespace Fusion {
 namespace Fusion {
   using UnityEngine;
 
-  static class FusionRuntimeCheck {
-
+  /// <summary>
+  /// Used to initialize Runtime flags for Fusion
+  /// </summary>
+  internal static class FusionRuntimeCheck {
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    static void RuntimeCheck() {
-      RuntimeUnityFlagsSetup.Check_ENABLE_IL2CPP();
-      RuntimeUnityFlagsSetup.Check_ENABLE_MONO();
-
-      RuntimeUnityFlagsSetup.Check_UNITY_EDITOR();
-      RuntimeUnityFlagsSetup.Check_UNITY_GAMECORE();
-      RuntimeUnityFlagsSetup.Check_UNITY_SWITCH();
+    private static void RuntimeCheck() {
       RuntimeUnityFlagsSetup.Check_UNITY_WEBGL();
-      RuntimeUnityFlagsSetup.Check_UNITY_XBOXONE();
-
-      RuntimeUnityFlagsSetup.Check_NETFX_CORE();
-      RuntimeUnityFlagsSetup.Check_NET_4_6();
-      RuntimeUnityFlagsSetup.Check_NET_STANDARD_2_0();
-
-      RuntimeUnityFlagsSetup.Check_UNITY_2019_4_OR_NEWER();
     }
   }
 }
-
-
-#endregion
-
-
-#region Assets/Photon/Fusion/Runtime/FusionTraceChannelsExtensions.cs
-
-
-
-namespace Fusion {
-  static class TraceChannelsExtensions {
-    public static TraceChannels AddChannelsFromDefines(this TraceChannels traceChannels) {
-#if FUSION_TRACE_GLOBAL
-      traceChannels |= TraceChannels.Global;
-#endif
-#if FUSION_TRACE_STUN
-      traceChannels |= TraceChannels.Stun;
-#endif
-#if FUSION_TRACE_OBJECT
-      traceChannels |= TraceChannels.Object;
-#endif
-#if FUSION_TRACE_NETWORK
-      traceChannels |= TraceChannels.Network;
-#endif
-#if FUSION_TRACE_PREFAB
-      traceChannels |= TraceChannels.Prefab;
-#endif
-#if FUSION_TRACE_SCENEINFO
-      traceChannels |= TraceChannels.SceneInfo;
-#endif
-#if FUSION_TRACE_SCENEMANAGER
-      traceChannels |= TraceChannels.SceneManager;
-#endif
-#if FUSION_TRACE_SIMULATIONMESSAGE
-      traceChannels |= TraceChannels.SimulationMessage;
-#endif
-#if FUSION_TRACE_HOSTMIGRATION
-      traceChannels |= TraceChannels.HostMigration;
-#endif
-#if FUSION_TRACE_ENCRYPTION
-      traceChannels |= TraceChannels.Encryption;
-#endif
-#if FUSION_TRACE_DUMMYTRAFFIC
-      traceChannels |= TraceChannels.DummyTraffic;
-#endif
-#if FUSION_TRACE_REALTIME
-      traceChannels |= TraceChannels.Realtime;
-#endif
-#if FUSION_TRACE_MEMORYTRACK
-      traceChannels |= TraceChannels.MemoryTrack;
-#endif
-#if FUSION_TRACE_SNAPSHOTS
-      traceChannels |= TraceChannels.Snapshots;
-#endif
-#if FUSION_TRACE_TIME
-      traceChannels |= TraceChannels.Time;
-#endif
-      return traceChannels;
-    }
-  }
-}
-
 
 #endregion
 
@@ -1652,61 +1570,6 @@ namespace Fusion {
   /// to provide a custom logger. Use <see cref="InitializeUnityLoggerUser"/> to override default Unity logger settings.
   /// </summary>
   public static partial class FusionLogInitializer {
-#if UNITY_EDITOR
-    static LogLevel GetEditorLogLevel() {
-      var currentBuildTarget = EditorUserBuildSettings.activeBuildTarget;
-      var currentBuildTargetGroup = BuildPipeline.GetBuildTargetGroup(currentBuildTarget);
-      var currentNamedBuildTarget = NamedBuildTarget.FromBuildTargetGroup(currentBuildTargetGroup);
-      var defines = PlayerSettings.GetScriptingDefineSymbols(currentNamedBuildTarget).Split(";");
-      
-      const string LogLevelNone  = "FUSION_LOGLEVEL_NONE";
-      const string LogLevelError = "FUSION_LOGLEVEL_ERROR";
-      const string LogLevelWarn  = "FUSION_LOGLEVEL_WARN";
-      const string LogLevelInfo  = "FUSION_LOGLEVEL_INFO";
-      const string LogLevelDebug = "FUSION_LOGLEVEL_DEBUG";
-      const string LogLevelTrace = "FUSION_LOGLEVEL_TRACE";
-      
-      (string, LogLevel)[] logLevelDefines = {
-        (LogLevelNone, LogLevel.None),
-        (LogLevelError, LogLevel.Error),
-        (LogLevelWarn, LogLevel.Warn),
-        (LogLevelInfo, LogLevel.Info),
-        (LogLevelDebug, LogLevel.Debug),
-      };
-      
-      string defaultLogLevelDefine = LogLevelInfo;
-      
-      if (Array.IndexOf(defines, LogLevelTrace) >= 0) {
-        FusionEditorLog.Warn($"{LogLevelTrace} is not supported in Fusion. Replacing with {LogLevelDebug}.");
-        ArrayUtility.Remove(ref defines, LogLevelTrace);
-        defaultLogLevelDefine = LogLevelDebug;
-      }
-      
-      LogLevel? foundLogLevel = null;
-      foreach (var (define, logLevel) in logLevelDefines) {
-        if (Array.IndexOf(defines, define) < 0) {
-          continue;
-        }
-
-        foundLogLevel = logLevel;
-        break;
-      }
-      
-      if (foundLogLevel == null) {
-        if (Application.isPlaying) {
-          FusionEditorLog.Log($"No log level define set for Fusion. Setting default: {defaultLogLevelDefine}");
-        }
-        
-        ArrayUtility.Add(ref defines, defaultLogLevelDefine);
-        PlayerSettings.SetScriptingDefineSymbols(currentNamedBuildTarget, string.Join(";", defines));
-        
-        return LogLevel.Info;
-      } else {
-        return foundLogLevel.Value;
-      }
-    }
-#endif
-    
     /// <summary>
     /// Initializes the logging system for Fusion. This method is called automatically when the assembly is loaded.
     /// </summary>
@@ -1721,27 +1584,10 @@ namespace Fusion {
       FusionEditorLog.Initialize(isDark);
 #endif
       
-      LogLevel logLevel =
-#if FUSION_LOGLEVEL_DEBUG || FUSION_LOGLEVEL_TRACE
-        LogLevel.Debug;
-#elif FUSION_LOGLEVEL_INFO
-        LogLevel.Info;
-#elif FUSION_LOGLEVEL_WARN
-        LogLevel.Warn;
-#elif FUSION_LOGLEVEL_ERROR
-        LogLevel.Error;
-#elif FUSION_LOGLEVEL_NONE
-        LogLevel.None;
-#elif UNITY_EDITOR
-        GetEditorLogLevel();
-#else
-        LogLevel.None;
-        FusionEditorLog.Warn($"No log level define set for Fusion, treating as FUSION_LOGLEVEL_NONE (disabled completely).");
-#endif
-      
-      TraceChannels traceChannels = default;
-      traceChannels = traceChannels.AddChannelsFromDefines();
+      LogLevel logLevel = FusionLogConstants.DefinedLogLevel;
+      TraceChannels traceChannels = FusionLogConstants.DefinedTraceChannels;
       InitializeUser(ref logLevel, ref traceChannels);
+      InitializePartial(logLevel, traceChannels);
 
       if (Log.IsInitialized) {
         return;
@@ -1753,6 +1599,7 @@ namespace Fusion {
     }
     
     static partial void InitializeUser(ref LogLevel logLevel, ref TraceChannels traceChannels);
+    static partial void InitializePartial(LogLevel logLevel, TraceChannels traceChannels);
   }
 }
 
@@ -1764,6 +1611,7 @@ namespace Fusion {
 namespace Fusion {
   using System;
   using System.Diagnostics;
+  using System.Runtime.CompilerServices;
   using JetBrains.Annotations;
 #if FUSION_ENABLE_MPPM
   using System.Collections.Generic;
@@ -1906,21 +1754,30 @@ namespace Fusion {
         // start the MPE client to await commands
         var client = ChannelClient.GetOrCreateClient(MpeChannelName);
         client.Start(true);
-        var disconnect = client.RegisterMessageHandler(data => {
+        // ReSharper disable once AsyncVoidLambda
+        var disconnect = client.RegisterMessageHandler(async (byte[] data) => {
           var json = System.Text.Encoding.UTF8.GetString(data);
           var message = JsonUtility.FromJson<CommandWrapper>(json);
           
           FusionEditorLog.TraceMppm($"Received command {message.Data}");
-          message.Data.Execute();
-          if (message.Data.NeedsAck) {
-            var ack = new AckMessage() {
-              Guid = message.Guid
-            };
-            var ackJson = JsonUtility.ToJson(ack);
-            FusionEditorLog.TraceMppm($"Sending ack {ackJson}");
-            var ackBytes = System.Text.Encoding.UTF8.GetBytes(ackJson);
-            client.Send(ackBytes);
+          try {
+            await message.Data.ExecuteAsync();
+          } catch (Exception ex) {
+            FusionEditorLog.Error($"Error while handling MPPM message {message.Data.GetType().FullName}: {ex}");
+            return;
           }
+
+          if (!message.Data.NeedsAck) {
+            return;
+          }
+          
+          var ack = new AckMessage() {
+            Guid = message.Guid
+          };
+          var ackJson = JsonUtility.ToJson(ack);
+          FusionEditorLog.TraceMppm($"Sending ack {ackJson}");
+          var ackBytes = System.Text.Encoding.UTF8.GetBytes(ackJson);
+          client.Send(ackBytes);
         });
         Debug.Assert(disconnect != null);
         
@@ -1929,9 +1786,13 @@ namespace Fusion {
         Debug.Assert(Directory.Exists(mainInstanceCommandsFolderPath));
         foreach (var file in Directory.GetFiles(mainInstanceCommandsFolderPath, "*.json")) {
           var json = File.ReadAllText(file);
-          var wrapper = JsonUtility.FromJson<CommandWrapper>(json);
-          FusionEditorLog.TraceMppm($"Received persistent command {wrapper.Data}");
-          wrapper.Data.Execute();
+          var message = JsonUtility.FromJson<CommandWrapper>(json);
+          FusionEditorLog.TraceMppm($"Received persistent command {message.Data}");
+          message.Data.ExecuteAsync().ContinueWith(t => {
+            if (t.IsFaulted) {
+              FusionEditorLog.Error($"Error while handling persistent MPPM message {message.Data.GetType().FullName}: {t.Exception}");
+            }
+          });
         }
       }
     }
@@ -2027,13 +1888,24 @@ namespace Fusion {
   // ReSharper disable once IdentifierTypo
   public abstract class FusionMppmCommand {
     /// <summary>
-    /// Execute the command on a virtual instance.
+    /// Execute the command on a virtual instance. Executes synchronously.
     /// </summary>
-    public abstract void Execute();
+    public virtual void Execute() {
+    }
+
+    /// <summary>
+    /// Execute the command on a virtual instance. By default, calls <see cref="Execute"/>
+    /// </summary>
+    public virtual System.Threading.Tasks.Task ExecuteAsync() {
+      Execute();
+      return System.Threading.Tasks.Task.CompletedTask;
+    } 
+    
     /// <summary>
     /// Does the main instance need to wait for an ack?
     /// </summary>
     public virtual bool NeedsAck => false;
+    
     /// <summary>
     /// If the command is persistent (i.e. needs to be executed on each domain reload), this key is used to store it.
     /// </summary>
@@ -2082,6 +1954,28 @@ namespace Fusion {
   }
 }
 #endif
+
+#endregion
+
+
+#region FusionUnityEditorPaths.cs
+
+namespace Fusion {
+  /// <summary>
+  /// Fusion Unity paths.
+  /// </summary>
+  public static class FusionUnityEditorPaths {
+    /// <summary>
+    /// Root folder of Fusion installation.
+    /// </summary>
+    public const string Root =
+#if FUSION_UPM
+      "Packages/com.photonengine.fusion";
+#else
+      "Assets/Photon/Fusion";
+#endif
+  }
+}
 
 #endregion
 
@@ -2172,6 +2066,330 @@ namespace Fusion {
 #endregion
 
 
+#region FusionUnityHostProfiler.cs
+
+#if ENABLE_PROFILER
+namespace Fusion {
+  using System;
+  using System.Runtime.CompilerServices;
+  using Unity.Collections.LowLevel.Unsafe;
+  using Unity.Profiling;
+  using Unity.Profiling.LowLevel;
+  using Unity.Profiling.LowLevel.Unsafe;
+  using UnityEngine;
+  using UnityEngine.Scripting;
+
+  /// <summary>
+  /// Profiler implementation for Unity.
+  /// </summary>
+  [Preserve]
+  public class FusionUnityHostProfiler : HostProfiler {
+#if !FUSION_DISABLE_UNITY_HOST_PROFILER
+    static FusionUnityHostProfiler() {
+      Init(new FusionUnityHostProfiler());
+    }
+    
+    [RuntimeInitializeOnLoadMethod]
+    static void InitializeOnLoad() {
+      // dummy, we just care about static constructor being called
+    } 
+#endif
+    
+    /// <inheritdoc cref="HostProfiler.StartInternal(Fusion.HostProfilerMarker)"/>
+    public override void StartInternal(HostProfilerMarker marker) {
+      ProfilerUnsafeUtility.BeginSample(marker.RawValue);
+    }
+
+    /// <inheritdoc cref="HostProfiler.EndInternal(Fusion.HostProfilerMarker)"/>
+    public override void EndInternal(HostProfilerMarker marker) {
+      ProfilerUnsafeUtility.EndSample(marker.RawValue);
+    }
+
+    /// <inheritdoc cref="HostProfiler.StartInternal"/>
+    public override void StartInternal(string markerName) {
+      UnityEngine.Profiling.Profiler.BeginSample(markerName);
+    }
+
+    /// <inheritdoc cref="HostProfiler.EndInternal"/>
+    public override void EndInternal() {
+      UnityEngine.Profiling.Profiler.EndSample();
+    }
+    
+    /// <inheritdoc cref="HostProfiler.CreateMarker"/>
+    protected override HostProfilerMarker CreateMarkerInternal(string name) {
+      var ptr = ProfilerUnsafeUtility.CreateMarker($"F {name}", ProfilerCategory.Scripts, MarkerFlags.Default, 0);
+      return new HostProfilerMarker(ptr);
+    }
+
+    /// <inheritdoc cref="HostProfiler.CreateSampler{T}"/>
+    protected override HostProfilerSampler<T> CreateSamplerInternal<T>(string name, HostProfilerDataUnit unit) {
+      var marker = ProfilerUnsafeUtility.CreateMarker($"F {name}", ProfilerCategory.Scripts, MarkerFlags.Counter, 1);
+      ProfilerUnsafeUtility.SetMarkerMetadata(marker, 0, null, (byte)GetMarkerDataType<T>(), (byte)GetProfilerMarkerDataUnit(unit));
+      return new HostProfilerSampler<T>(marker);
+    }
+
+    /// <inheritdoc cref="HostProfiler.CreateCounter{T}"/>
+    protected override unsafe HostProfilerCounter<T> CreateCounterInternal<T>(string name, HostProfilerDataUnit unit, bool resetOnFrameEnd) {
+      var flags = ProfilerCounterOptions.FlushOnEndOfFrame | (resetOnFrameEnd ? ProfilerCounterOptions.ResetToZeroOnFlush : default);
+      var ptr = ProfilerUnsafeUtility.CreateCounterValue(out _, $"F {name}", ProfilerUnsafeUtility.CategoryScripts, MarkerFlags.Default, (byte)GetMarkerDataType<T>(), (byte)GetProfilerMarkerDataUnit(unit), UnsafeUtility.SizeOf<T>(), flags);
+      return new HostProfilerCounter<T>(new IntPtr(ptr));
+    }
+
+    /// <inheritdoc cref="HostProfiler.SetSampleInternal{T}"/>
+    public override void SetSampleInternal<T>(in HostProfilerSampler<T> sampler, T value) {
+      unsafe {
+        var data = new ProfilerMarkerData {
+          Type = (byte)GetMarkerDataType<T>(),
+          Size = (uint)sizeof(T),
+          Ptr = UnsafeUtility.AddressOf(ref value)
+        };
+        ProfilerUnsafeUtility.SingleSampleWithMetadata(sampler.RawValue, 1, &data);
+      }
+    }
+
+    /// <inheritdoc cref="HostProfiler.SetCountInternal{T}"/>
+    public override unsafe void SetCountInternal<T>(in HostProfilerCounter<T> counter, T value, bool delta) {
+      if (delta) {
+        if (typeof(T) == typeof(int)) {
+          *(int*)counter.RawValue += *(int*)&value;
+        } else if (typeof(T) == typeof(float)) {
+          *(float*)counter.RawValue += *(float*)&value;
+        } else if (typeof(T) == typeof(double)) {
+          *(double*)counter.RawValue += *(double*)&value;
+        } else {
+          Assert.Fail($"Type not supported");
+        }
+      } else {
+        *(T*)counter.RawValue = value;
+      }
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static ProfilerMarkerDataType GetMarkerDataType<T>() {
+      if (typeof(T) == typeof(float)) {
+        return ProfilerMarkerDataType.Float;
+      } else if (typeof(T) == typeof(double)) {
+        return ProfilerMarkerDataType.Double;
+      } else {
+        return ProfilerMarkerDataType.Int32;
+      }
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    static ProfilerMarkerDataUnit GetProfilerMarkerDataUnit(HostProfilerDataUnit dataUnit) {
+      return dataUnit switch {
+        HostProfilerDataUnit.Bytes => ProfilerMarkerDataUnit.Bytes,
+        HostProfilerDataUnit.Count => ProfilerMarkerDataUnit.Count,
+        HostProfilerDataUnit.Percent => ProfilerMarkerDataUnit.Percent,
+        HostProfilerDataUnit.FrequencyHz => ProfilerMarkerDataUnit.FrequencyHz,
+        HostProfilerDataUnit.TimeNanoseconds => ProfilerMarkerDataUnit.TimeNanoseconds,
+        _ => ProfilerMarkerDataUnit.Undefined
+      };
+    }
+  }
+}
+#endif
+
+#endregion
+
+
+#region FusionUnitySceneManagerUtils.cs
+
+namespace Fusion {
+  using System;
+  using System.Collections.Generic;
+  using System.Linq;
+  using System.Text;
+  using System.Threading.Tasks;
+  using UnityEditor;
+  using UnityEngine;
+  using UnityEngine.SceneManagement;
+
+  /// <summary>
+  /// Exension and utility methods for <see cref="SceneManager"/> and <see cref="Scene"/> types.
+  /// </summary>
+  static partial class FusionUnitySceneManagerUtils {
+
+    /// <summary>
+    /// A comparer that can be used when scenes need to be comparable, like when being as keys in a dictionary.
+    /// </summary>
+    public class SceneEqualityComparer : IEqualityComparer<Scene> {
+      /// <summary>
+      /// Compares scenes by their <see cref="Scene.handle"/>
+      /// </summary>
+      public bool Equals(Scene x, Scene y) {
+        return x.handle == y.handle;
+      }
+
+      
+      /// <summary>
+      /// Returns <see cref="Scene.handle"/>
+      /// </summary>
+      public int GetHashCode(Scene obj) {
+        return obj.handle;
+      }
+    }
+
+    /// <summary>
+    /// Returns true if <paramref name="scene"/> is in the build settings. Note that just checking <see cref="Scene.buildIndex"/> is not enough.
+    /// </summary>
+    public static bool IsAddedToBuildSettings(this Scene scene) {
+      if (scene.buildIndex < 0) {
+        return false;
+      }
+      // yep that's a thing: https://docs.unity3d.com/ScriptReference/SceneManagement.Scene-buildIndex.html
+      if (scene.buildIndex >= SceneManager.sceneCountInBuildSettings) {
+        return false;
+      }
+      return true;
+    }
+
+#if UNITY_EDITOR
+    /// <summary>
+    /// Editor-only. Adds scene to the build settings.
+    /// </summary>
+    /// <returns>False if the scene is already added</returns>
+    public static bool AddToBuildSettings(Scene scene) {
+      if (IsAddedToBuildSettings(scene)) {
+        return false;
+      }
+
+      EditorBuildSettings.scenes =
+        new[] { new EditorBuildSettingsScene(scene.path, true) }
+        .Concat(EditorBuildSettings.scenes)
+        .ToArray();
+
+      FusionEditorLog.Log($"Added '{scene.path}' as first entry in Build Settings.");
+      return true;
+    }
+#endif
+
+    /// <summary>
+    /// Returns true if <paramref name="scene"/> can be unloaded.
+    /// </summary>
+    /// <param name="scene"></param>
+    /// <returns></returns>
+    public static bool CanBeUnloaded(this Scene scene) {
+      if (!scene.isLoaded) {
+        return false;
+      }
+      
+      for (int i = 0; i < SceneManager.sceneCount; ++i) {
+        var s = SceneManager.GetSceneAt(i);
+        if (s != scene && s.isLoaded) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /// <summary>
+    /// Converts <paramref name="scene"/> into string, dumping all its fields and properties.
+    /// </summary>
+    public static string Dump(this Scene scene) {
+      StringBuilder result = new StringBuilder();
+
+      result.Append("[UnityScene:");
+      
+      if (scene.IsValid()) {
+        result.Append(scene.name);
+        result.Append(", isLoaded:").Append(scene.isLoaded);
+        result.Append(", buildIndex:").Append(scene.buildIndex);
+        result.Append(", isDirty:").Append(scene.isDirty);
+        result.Append(", path:").Append(scene.path);
+        result.Append(", rootCount:").Append(scene.rootCount);
+        result.Append(", isSubScene:").Append(scene.isSubScene);
+      } else {
+        result.Append("<Invalid>");
+      }
+
+      result.Append(", handle:").Append(scene.handle);
+      result.Append("]");
+      return result.ToString();
+    }
+
+    /// <summary>
+    /// Converts <paramref name="loadSceneParameters"/> to string.
+    /// </summary>
+    public static string Dump(this LoadSceneParameters loadSceneParameters) {
+      return $"[LoadSceneParameters: {loadSceneParameters.loadSceneMode}, localPhysicsMode:{loadSceneParameters.localPhysicsMode}]";
+    }
+    
+    /// <summary>
+    /// Gets scene's build index based on its name or path.
+    /// </summary>
+    public static int GetSceneBuildIndex(string nameOrPath) {
+      if (nameOrPath.IndexOf('/', StringComparison.Ordinal) >= 0) {
+        return SceneUtility.GetBuildIndexByScenePath(nameOrPath);
+      } else {
+        for (int i = 0; i < SceneManager.sceneCountInBuildSettings; ++i) {
+          var scenePath = SceneUtility.GetScenePathByBuildIndex(i);
+          var sceneName = GetFileNameWithoutExtension(scenePath);
+          if (sceneName.Equals(nameOrPath, StringComparison.OrdinalIgnoreCase)) {
+            return i;
+          }
+        }
+
+        return -1;
+      }
+    }
+
+    internal static ReadOnlySpan<char> GetFileNameWithoutExtension(ReadOnlySpan<char> nameOrPath) {
+      var lastSlash = nameOrPath.LastIndexOf('/');
+      int index = 0;
+      if (lastSlash >= 0) {
+        index = lastSlash + 1;
+      } else {
+        index = 0;
+      }
+
+      var lastDot = nameOrPath.LastIndexOf('.');
+      if (lastDot >= index) {
+        return nameOrPath.Slice(index, lastDot - index);
+      } else {
+        return nameOrPath.Slice(index);
+      }
+    }
+  }
+}
+
+#endregion
+
+
+
+#endregion
+
+
+#region Assets/Photon/Fusion/Runtime/Matchmaking/MatchmakingArgumentsExtensions.cs
+
+﻿namespace Fusion.Matchmaking {
+  using global::Photon.Realtime;
+  using Photon.Realtime;
+
+  /// <summary>
+  /// Extension methods to <see cref="MatchmakingArguments"/>
+  /// </summary>
+  public static class MatchmakingArgumentsExtensions {
+    /// <summary>
+    /// Set up a <see cref="MatchmakingArguments"/> for Fusion
+    /// </summary>
+    public static MatchmakingArguments SetupForFusion(this MatchmakingArguments arguments) {
+      arguments.PluginName     =   RealtimeClientExtensions.FusionPluginName;
+      arguments.MaxPlayers     =   NetworkProjectConfigAsset.Global.Config.Simulation.PlayerCount;
+      arguments.PhotonSettings ??= PhotonAppSettings.Global.AppSettings;
+      arguments.NetworkClient = (arguments.NetworkClient ?? new RealtimeClient())
+        .SetupForFusion(arguments.PhotonSettings as FusionAppSettings);
+
+      return arguments;
+    }
+
+    /// <summary>
+    /// Build and Setup a Realtime Client to be used with Fusion
+    /// </summary>
+    public static RealtimeClient BuildRealtimeClient(FusionAppSettings config = null) =>
+      new RealtimeClient().SetupForFusion(config ?? PhotonAppSettings.Global.AppSettings);
+  }
+}
 
 #endregion
 
@@ -2179,6 +2397,7 @@ namespace Fusion {
 #region Assets/Photon/Fusion/Runtime/NetworkObjectBaker.cs
 
 ﻿//#undef UNITY_EDITOR
+
 namespace Fusion {
   using System;
   using System.Collections.Generic;
@@ -2193,21 +2412,21 @@ namespace Fusion {
 
   public class NetworkObjectBaker {
 
-    private List<NetworkObject> _allNetworkObjects             = new List<NetworkObject>();
-    private List<TransformPath> _networkObjectsPaths           = new List<TransformPath>();
-    private List<SimulationBehaviour> _allSimulationBehaviours = new List<SimulationBehaviour>();
-    private TransformPathCache _pathCache                      = new TransformPathCache();
-    private List<NetworkBehaviour> _arrayBufferNB    = new List<NetworkBehaviour>();
-    private List<NetworkObject> _arrayBufferNO       = new List<NetworkObject>();
-    
-    public struct Result {
-      public bool HadChanges { get; }
-      public int ObjectCount { get; }
-      public int BehaviourCount { get; }
+    readonly List<NetworkObject> _allNetworkObjects = new List<NetworkObject>();
+    readonly List<TransformPath> _networkObjectsPaths = new List<TransformPath>();
+    readonly List<SimulationBehaviour> _allSimulationBehaviours = new List<SimulationBehaviour>();
+    readonly TransformPathCache _pathCache = new TransformPathCache();
+    readonly List<NetworkBehaviour> _arrayBufferNB = new List<NetworkBehaviour>();
+    readonly List<NetworkObject> _arrayBufferNO = new List<NetworkObject>();
+
+    public readonly struct Result {
+      public bool HadChanges     { get; }
+      public int  ObjectCount    { get; }
+      public int  BehaviourCount { get; }
 
       public Result(bool dirty, int objectCount, int behaviourCount) {
-        HadChanges = dirty;
-        ObjectCount = objectCount;
+        HadChanges     = dirty;
+        ObjectCount    = objectCount;
         BehaviourCount = behaviourCount;
       }
     }
@@ -2220,7 +2439,7 @@ namespace Fusion {
       order = default;
       return false;
     }
-    
+
     protected virtual uint GetSortKey(NetworkObject obj) {
       return 0;
     }
@@ -2240,12 +2459,12 @@ namespace Fusion {
       if (root == null) {
         throw new ArgumentNullException(nameof(root));
       }
-      
-      root.GetComponentsInChildren(true, _allNetworkObjects);
-      
+
+      root.GetComponentsInChildren(includeInactive: true, _allNetworkObjects);
+
       // remove null ones (missing scripts may cause that)
       _allNetworkObjects.RemoveAll(x => x == null);
-      
+
       if (_allNetworkObjects.Count == 0) {
         return new Result(false, 0, 0);
       }
@@ -2256,13 +2475,13 @@ namespace Fusion {
         }
 
         bool dirty = false;
-        
+
         _allNetworkObjects.Reverse();
         _networkObjectsPaths.Reverse();
 
-        root.GetComponentsInChildren(true, _allSimulationBehaviours);
+        root.GetComponentsInChildren(includeInactive: true, _allSimulationBehaviours);
         _allSimulationBehaviours.RemoveAll(x => x == null);
-        
+
         int countNO = _allNetworkObjects.Count;
         int countSB = _allSimulationBehaviours.Count;
 
@@ -2270,36 +2489,47 @@ namespace Fusion {
         for (int i = 0; i < _allNetworkObjects.Count; ++i) {
           var obj = _allNetworkObjects[i];
 
+          var flags = obj.Flags;
+          flags &= ~NetworkObjectFlags.HasMainNetworkTRSP;
+
           var objDirty = false;
           var objActive = obj.gameObject.activeInHierarchy;
           int? objExecutionOrder = null;
+
           if (!objActive) {
             if (TryGetExecutionOrder(obj, out var order)) {
               objExecutionOrder = order;
             } else {
               Log.Warn($"Unable to get execution order for {obj}. " +
-                $"Because the object is initially inactive, Fusion is unable to guarantee " +
-                $"the script's Awake will be invoked before Spawned. Please implement {nameof(TryGetExecutionOrder)}.");
+                       $"Because the object is initially inactive, Fusion is unable to guarantee " +
+                       $"the script's Awake will be invoked before Spawned. Please implement {nameof(TryGetExecutionOrder)}.");
             }
           }
 
           // find nested behaviours
           _arrayBufferNB.Clear();
-          
+
           var path = _networkObjectsPaths[i];
-          
-          string entryPath = path.ToString();
+          NetworkTRSP mainTrsp = null;
+
           for (int scriptIndex = _allSimulationBehaviours.Count - 1; scriptIndex >= 0; --scriptIndex) {
             var script = _allSimulationBehaviours[scriptIndex];
             var scriptPath = _pathCache.Create(script.transform);
 
             if (_pathCache.IsEqualOrAncestorOf(path, scriptPath)) {
-              if (script is NetworkBehaviour nb) {
+              if (script is NetworkTRSP networkTrsp) {
+                if (!mainTrsp && obj.gameObject == networkTrsp.gameObject) {
+                  Log.Trace($"NetworkObject {obj} has main TRSP {networkTrsp} (first TRSP on its GameObject)");
+                  mainTrsp = networkTrsp;
+                } else {
+                  _arrayBufferNB.Add(networkTrsp);
+                }
+              } else if (script is NetworkBehaviour nb) {
                 _arrayBufferNB.Add(nb);
               }
-              
+
               objDirty |= PostprocessBehaviour(script);
-              
+
               _allSimulationBehaviours.RemoveAt(scriptIndex);
 
               if (objExecutionOrder != null) {
@@ -2324,13 +2554,15 @@ namespace Fusion {
             }
           }
 
+          if (mainTrsp) {
+            flags |= NetworkObjectFlags.HasMainNetworkTRSP;
+            _arrayBufferNB.Add(mainTrsp);
+          }
+
           _arrayBufferNB.Reverse();
           objDirty |= Set(obj, ref obj.NetworkedBehaviours, _arrayBufferNB);
 
           // handle flags
-
-          var flags = obj.Flags;
-
           if (!flags.IsVersionCurrent()) {
             flags = flags.SetCurrentVersion();
           }
@@ -2341,8 +2573,9 @@ namespace Fusion {
           {
             _arrayBufferNO.Clear();
 
-            // collect descendants; descendants should be continous without gaps here
+            // collect descendants; descendants should be continuous without gaps here
             int j = i - 1;
+
             for (; j >= 0 && _pathCache.IsAncestorOf(path, _networkObjectsPaths[j]); --j) {
               _arrayBufferNO.Add(_allNetworkObjects[j]);
             }
@@ -2354,7 +2587,7 @@ namespace Fusion {
           }
 
           objDirty |= Set(obj, ref obj.SortKey, GetSortKey(obj));
-          
+
           if (objDirty) {
             SetDirty(obj);
             dirty = true;
@@ -2386,6 +2619,7 @@ namespace Fusion {
 
     private bool Set<T>(MonoBehaviour host, ref T[] field, List<T> value) {
       var comparer = EqualityComparer<T>.Default;
+
       if (field == null || field.Length != value.Count || !field.SequenceEqual(value, comparer)) {
         Log.Trace($"Object dirty: {host} ({field} vs {value})");
         field = value.ToArray();
@@ -2408,7 +2642,7 @@ namespace Fusion {
 
       internal TransformPath(ushort depth, ushort next, List<ushort> indices, int offset, int count) {
         Depth = depth;
-        Next = next;
+        Next  = next;
 
         for (int i = 0; i < count; ++i) {
           Indices.Value[i] = indices[i + offset];
@@ -2417,10 +2651,12 @@ namespace Fusion {
 
       public override string ToString() {
         var builder = new StringBuilder();
+
         for (int i = 0; i < Depth && i < MaxDepth; ++i) {
           if (i > 0) {
             builder.Append("/");
           }
+
           builder.Append(Indices.Value[i]);
         }
 
@@ -2436,8 +2672,8 @@ namespace Fusion {
     public sealed unsafe class TransformPathCache : IComparer<TransformPath>, IEqualityComparer<TransformPath> {
 
       private Dictionary<Transform, TransformPath> _cache = new Dictionary<Transform, TransformPath>();
-      private List<ushort> _siblingIndexStack             = new List<ushort>();
-      private List<TransformPath> _nexts                  = new List<TransformPath>();
+      private List<ushort> _siblingIndexStack = new List<ushort>();
+      private List<TransformPath> _nexts = new List<TransformPath>();
 
 
       public TransformPath Create(Transform transform) {
@@ -2446,9 +2682,11 @@ namespace Fusion {
         }
 
         _siblingIndexStack.Clear();
+
         for (var tr = transform; tr != null; tr = tr.parent) {
           _siblingIndexStack.Add(checked((ushort)tr.GetSiblingIndex()));
         }
+
         _siblingIndexStack.Reverse();
 
 
@@ -2459,6 +2697,7 @@ namespace Fusion {
         if (depth > TransformPath.MaxDepth) {
 
           int i;
+
           if (depth % TransformPath.MaxDepth != 0) {
             // tail is going to be partially full
             i = depth - (depth % TransformPath.MaxDepth);
@@ -2505,6 +2744,7 @@ namespace Fusion {
 
       public int Compare(TransformPath x, TransformPath y) {
         var diff = CompareToDepthUnchecked(x, y, Mathf.Min(x.Depth, y.Depth));
+
         if (diff != 0) {
           return diff;
         }
@@ -2515,6 +2755,7 @@ namespace Fusion {
       private int CompareToDepthUnchecked(in TransformPath x, in TransformPath y, int depth) {
         for (int i = 0; i < depth && i < TransformPath.MaxDepth; ++i) {
           int diff = x.Indices.Value[i] - y.Indices.Value[i];
+
           if (diff != 0) {
             return diff;
           }
@@ -2571,6 +2812,7 @@ namespace Fusion {
           if (i > 0) {
             builder.Append("/");
           }
+
           builder.Append(x.Indices.Value[i]);
         }
 
@@ -2584,7 +2826,6 @@ namespace Fusion {
   }
 }
 
-
 #endregion
 
 
@@ -2594,27 +2835,47 @@ namespace Fusion {
   using System;
   using Object = UnityEngine.Object;
 
+  /// <summary>
+  /// Hard reference-based implementation of the asset source pattern. This asset source forms a hard reference to the asset and never releases it.
+  /// This type is meant to be used at runtime. For edit-time, prefer <see cref="NetworkPrefabSourceStaticLazy"/>, as it delays
+  /// actually loading the asset, improving the editor performance.
+  /// </summary>
   [Serializable]
   public class NetworkPrefabSourceStatic : NetworkAssetSourceStatic<NetworkObject>, INetworkPrefabSource {
+    /// <inheritdoc cref="INetworkPrefabSource.AssetGuid"/>
     public NetworkObjectGuid               AssetGuid;
     NetworkObjectGuid INetworkPrefabSource.AssetGuid => AssetGuid;
   }
   
+  /// <summary>
+  /// An edit-time optimised version of <see cref="NetworkPrefabSourceStatic"/>, taking advantage of Unity's lazy loading of
+  /// assets. At runtime, this type behaves exactly like <see cref="NetworkPrefabSourceStatic"/>, except for the inability
+  /// to use runtime-created objects.
+  /// </summary>
   [Serializable]
   public class NetworkPrefabSourceStaticLazy : NetworkAssetSourceStaticLazy<NetworkObject>, INetworkPrefabSource {
+    /// <inheritdoc cref="INetworkPrefabSource.AssetGuid"/>
     public NetworkObjectGuid               AssetGuid;
     NetworkObjectGuid INetworkPrefabSource.AssetGuid => AssetGuid;
   }
 
+  /// <summary>
+  /// Resources-based implementation of the asset source pattern.
+  /// </summary>
   [Serializable]
   public class NetworkPrefabSourceResource : NetworkAssetSourceResource<NetworkObject>, INetworkPrefabSource {
+    /// <inheritdoc cref="INetworkPrefabSource.AssetGuid"/>
     public NetworkObjectGuid               AssetGuid;
     NetworkObjectGuid INetworkPrefabSource.AssetGuid => AssetGuid;
   }
   
 #if FUSION_ENABLE_ADDRESSABLES && !FUSION_DISABLE_ADDRESSABLES
+  /// <summary>
+  /// An Addressables-based implementation of the asset source pattern. The asset is loaded from the Addressables system.
+  /// </summary>
   [Serializable]
   public class NetworkPrefabSourceAddressable : NetworkAssetSourceAddressable<NetworkObject>, INetworkPrefabSource {
+    /// <inheritdoc cref="INetworkPrefabSource.AssetGuid"/>
     public NetworkObjectGuid               AssetGuid;
     NetworkObjectGuid INetworkPrefabSource.AssetGuid => AssetGuid;
   }
@@ -3669,7 +3930,6 @@ namespace Fusion {
     /// <summary>
     /// Modifies a skin to make it scale with screen height.
     /// </summary>
-    /// <param name="skin"></param>
     /// <returns>Returns (height, width, padding, top-margin, left-box-margin) values applied to the GuiSkin</returns>
     public static (float, float, int, int, float) ScaleGuiSkinToScreenHeight() {
 
@@ -3713,45 +3973,7 @@ namespace Fusion {
   using UnityEngine;
   using UnityEngine.SceneManagement;
 
-  public static class FusionUnitySceneManagerUtils {
-
-    public class SceneEqualityComparer : IEqualityComparer<Scene> {
-      public bool Equals(Scene x, Scene y) {
-        return x.handle == y.handle;
-      }
-
-      public int GetHashCode(Scene obj) {
-        return obj.handle;
-      }
-    }
-
-    public static bool IsAddedToBuildSettings(this Scene scene) {
-      if (scene.buildIndex < 0) {
-        return false;
-      }
-      // yep that's a thing: https://docs.unity3d.com/ScriptReference/SceneManagement.Scene-buildIndex.html
-      if (scene.buildIndex >= SceneManager.sceneCountInBuildSettings) {
-        return false;
-      }
-      return true;
-    }
-
-#if UNITY_EDITOR
-    public static bool AddToBuildSettings(Scene scene) {
-      if (IsAddedToBuildSettings(scene)) {
-        return false;
-      }
-
-      EditorBuildSettings.scenes =
-        new[] { new EditorBuildSettingsScene(scene.path, true) }
-        .Concat(EditorBuildSettings.scenes)
-        .ToArray();
-
-      Debug.Log($"Added '{scene.path}' as first entry in Build Settings.");
-      return true;
-    }
-#endif
-
+  public static partial class FusionUnitySceneManagerUtils {
     public static LocalPhysicsMode GetLocalPhysicsMode(this Scene scene) {
       LocalPhysicsMode mode = LocalPhysicsMode.None;
       if (scene.GetPhysicsScene() != Physics.defaultPhysicsScene) {
@@ -3768,7 +3990,6 @@ namespace Fusion {
     /// </summary>
     /// <param name="scene"></param>
     /// <param name="includeInactive"></param>
-    /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public static T[] GetComponents<T>(this Scene scene, bool includeInactive) where T : Component {
       return GetComponents<T>(scene, includeInactive, out _);
@@ -3780,7 +4001,6 @@ namespace Fusion {
     /// <param name="scene"></param>
     /// <param name="includeInactive"></param>
     /// <param name="rootObjects"></param>
-    /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public static T[] GetComponents<T>(this Scene scene, bool includeInactive, out GameObject[] rootObjects) where T : Component {
       rootObjects = scene.GetRootGameObjects();
@@ -3807,7 +4027,6 @@ namespace Fusion {
     /// <param name="scene"></param>
     /// <param name="results"></param>
     /// <param name="includeInactive"></param>
-    /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public static void GetComponents<T>(this Scene scene, List<T> results, bool includeInactive) where T : Component {
       var rootObjects = _reusableGameObjectList;
@@ -3831,7 +4050,6 @@ namespace Fusion {
     /// </summary>
     /// <param name="scene"></param>
     /// <param name="includeInactive"></param>
-    /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     public static T FindComponent<T>(this Scene scene, bool includeInactive = false) where T : Component {
       var rootObjects = _reusableGameObjectList;
@@ -3845,62 +4063,6 @@ namespace Fusion {
         }
       }
       return null;
-    }
-
-    public static bool CanBeUnloaded(this Scene scene) {
-      if (!scene.isLoaded) {
-        return false;
-      }
-      
-      for (int i = 0; i < SceneManager.sceneCount; ++i) {
-        var s = SceneManager.GetSceneAt(i);
-        if (s != scene && s.isLoaded) {
-          return true;
-        }
-      }
-      return false;
-    }
-
-    public static string Dump(this Scene scene) {
-      StringBuilder result = new StringBuilder();
-
-      result.Append("[UnityScene:");
-      
-      if (scene.IsValid()) {
-        result.Append(scene.name);
-        result.Append(", isLoaded:").Append(scene.isLoaded);
-        result.Append(", buildIndex:").Append(scene.buildIndex);
-        result.Append(", isDirty:").Append(scene.isDirty);
-        result.Append(", path:").Append(scene.path);
-        result.Append(", rootCount:").Append(scene.rootCount);
-        result.Append(", isSubScene:").Append(scene.isSubScene);
-      } else {
-        result.Append("<Invalid>");
-      }
-
-      result.Append(", handle:").Append(scene.handle);
-      result.Append("]");
-      return result.ToString();
-    }
-
-    public static string Dump(this LoadSceneParameters loadSceneParameters) {
-      return $"[LoadSceneParameters: {loadSceneParameters.loadSceneMode}, localPhysicsMode:{loadSceneParameters.localPhysicsMode}]";
-    }
-    
-    public static int GetSceneBuildIndex(string nameOrPath) {
-      if (nameOrPath.IndexOf('/') >= 0) {
-        return SceneUtility.GetBuildIndexByScenePath(nameOrPath);
-      } else {
-        for (int i = 0; i < SceneManager.sceneCountInBuildSettings; ++i) {
-          var scenePath = SceneUtility.GetScenePathByBuildIndex(i);
-          GetFileNameWithoutExtensionPosition(scenePath, out var nameIndex, out var nameLength);
-          if (nameLength == nameOrPath.Length && string.Compare(scenePath, nameIndex, nameOrPath, 0, nameLength, true) == 0) {
-            return i;
-          }
-        }
-
-        return -1;
-      }
     }
     
     public static int GetSceneIndex(IList<string> scenePathsOrNames, string nameOrPath) {

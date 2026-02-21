@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 3808186355855879363}
   - component: {fileID: 8741719663855981334}
   - component: {fileID: -2302466670561376925}
+  - component: {fileID: 9011362115666694736}
   m_Layer: 0
   m_Name: Consumable
   m_TagString: Untagged
@@ -126,11 +127,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
   SortKey: 2985269059
-  ObjectInterest: 1
-  Flags: 262145
+  SendPriority: 1
+  Flags: 786434
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: -2302466670561376925}
+  - {fileID: 9011362115666694736}
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &-2302466670561376925
 MonoBehaviour:
@@ -145,7 +147,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Project.Game.Consumables.NetworkConsumable
   _IsActive:
+<<<<<<< Updated upstream
     _value: 1
   sizeMultiplier: 1.15
   speedMultiplier: 1.1
   massMultiplier: 1.1
+=======
+    RawValue: 1
+  config: {fileID: 11400000, guid: 9e21fca921982c14b8b9a897d35efa15, type: 2}
+--- !u!114 &9011362115666694736
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2391579266404389304}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d8649e493b9daaf41bf5f8caec093d3c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DistanceBasedAuthority
+>>>>>>> Stashed changes

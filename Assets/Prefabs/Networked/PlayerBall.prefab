@@ -144,9 +144,9 @@ Rigidbody:
   m_ImplicitTensor: 1
   m_UseGravity: 1
   m_IsKinematic: 0
-  m_Interpolate: 1
+  m_Interpolate: 0
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 2
 --- !u!114 &8171928688411899340
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -264,10 +264,10 @@ MonoBehaviour:
   ConfigFlags: 0
   PhysicsSettings:
     ForecastEnabled: 1
-    DebugPhysics: 1
+    DebugPhysics: 0
     GravityForecast: 2
-    MaxExtrapolationTime: 0.35
-    MinLinearDetectedError: 0.02
+    MaxExtrapolationTime: 0.2
+    MinLinearDetectedError: 0.01
     MinAngularDetectedError: 3
     MaxLinearError: 0
     MaxAngularError: 0
@@ -278,8 +278,8 @@ MonoBehaviour:
     ErrorCorrectionType: 0
     LinearVelCorrectionMul: 1
     AngularVelCorrectionMul: 1
-    PositionCorrectionLerp: 0.15
-    RotationCorrectionLerp: 0.15
+    PositionCorrectionLerp: 0.22
+    RotationCorrectionLerp: 0.22
     Spring: 75
     Damper: 2
     ImpactStartCorrectionTime: 0.1

@@ -14,16 +14,15 @@ public class BallCenterCameraFollow : NetworkBehaviour
     [Tooltip("Static camera offset from the spawned ball. X=right, Y=up, Z=forward.")]
     public Vector3 cameraOffset = new Vector3(0f, 10f, -10f);
 
-    [Tooltip("If true, rotate the offset by the player's spawn yaw so camera stays behind that player orientation.")]
+    [Tooltip("If true, rotate the offset by the player's spawn yaw so camera starts behind player orientation.")]
     public bool offsetRelativeToPlayerYaw = true;
 
     [Header("Static Camera Rotation")]
-    [Tooltip("If true, uses Fixed Euler Angles. If false, camera looks at center point.")]
+    [Tooltip("If true, uses Fixed Euler Angles. If false, camera looks at center point once on spawn.")]
     public bool useFixedRotation = false;
 
     [Tooltip("Used only when Use Fixed Rotation is enabled.")]
     public Vector3 fixedEulerAngles = new Vector3(45f, 0f, 0f);
-
 
     [Header("Aim Assist")]
     [Tooltip("Recommended: force camera to look at the local ball on spawn to avoid wrong sky/horizon aim.")]
@@ -32,7 +31,20 @@ public class BallCenterCameraFollow : NetworkBehaviour
     [Tooltip("Looks slightly below the ball center for a subtle downward tilt.")]
     public float lookBelowBall = 0.5f;
 
+    [Header("Follow (Position Only)")]
+    [Tooltip("If enabled, camera follows player position only. Rotation remains unchanged after spawn.")]
+    public bool followPlayerPosition = true;
+
+    [Range(1f, 40f)]
+    [Tooltip("Position follow smoothness. Higher = tighter follow.")]
+    public float followLerpSpeed = 12f;
+
+    [Tooltip("If camera drifts farther than this, snap instead of lerp.")]
+    public float followSnapDistance = 8f;
+
     private Transform cam;
+    private bool isActive;
+    private Vector3 runtimeOffset;
 
     public override void Spawned()
     {
@@ -47,7 +59,30 @@ public class BallCenterCameraFollow : NetworkBehaviour
         }
 
         ResolveCenterPoint();
-        SnapLocalCameraAtSpawn();
+        SetupSpawnCameraPose();
+        isActive = true;
+    }
+
+    private void LateUpdate()
+    {
+        if (!isActive || cam == null || !followPlayerPosition)
+            return;
+
+        Vector3 targetPos = transform.position + runtimeOffset;
+        float dist = Vector3.Distance(cam.position, targetPos);
+
+        if (dist > followSnapDistance)
+        {
+            cam.position = targetPos;
+        }
+        else
+        {
+            float t = 1f - Mathf.Exp(-followLerpSpeed * Time.deltaTime);
+            cam.position = Vector3.Lerp(cam.position, targetPos, t);
+        }
+
+        // Intentionally no rotation update here.
+        // This keeps camera from rotating/orbiting while still following player position.
     }
 
     private void ResolveCenterPoint()
@@ -60,19 +95,17 @@ public class BallCenterCameraFollow : NetworkBehaviour
             centerPoint = go.transform;
     }
 
-    private void SnapLocalCameraAtSpawn()
+    private void SetupSpawnCameraPose()
     {
-        Vector3 offset = cameraOffset;
+        runtimeOffset = cameraOffset;
         if (offsetRelativeToPlayerYaw)
         {
             float yaw = transform.eulerAngles.y;
-            offset = Quaternion.Euler(0f, yaw, 0f) * cameraOffset;
+            runtimeOffset = Quaternion.Euler(0f, yaw, 0f) * cameraOffset;
         }
 
-        cam.position = transform.position + offset;
+        cam.position = transform.position + runtimeOffset;
 
-        // Primary safety: explicitly aim at the local ball.
-        // This prevents accidental sky/horizon view regardless of inspector rotation state.
         if (forceLookAtBall)
         {
             Vector3 ballAimPoint = transform.position + Vector3.down * Mathf.Abs(lookBelowBall);

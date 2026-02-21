@@ -917,13 +917,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
   SortKey: 720038200
-<<<<<<< Updated upstream
-  ObjectInterest: 1
-  Flags: 262145
-=======
   SendPriority: 1
   Flags: 131074
->>>>>>> Stashed changes
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 706439189}
@@ -2756,13 +2751,16 @@ MonoBehaviour:
   requiredPlayers: 4
   countdownSeconds: 3
   backToMenuDelay: 5
-  menuSceneBuildIndex: 1
+  menuSceneBuildIndex: 2
   _State: 0
   _CurrentPlayers: 0
   _WinnerName:
     _length: 0
     _data:
       Data: 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  consumablePrefab:
+    RawGuidValue: e8a56a8a97927c74a98c450caf64316e
+  consumableInitialSpawnDelay: 10
   consumableRespawnSeconds: 3
 --- !u!114 &2071398471
 MonoBehaviour:
@@ -2777,13 +2775,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Fusion.Runtime.dll::Fusion.NetworkObject
   SortKey: 198953018
-<<<<<<< Updated upstream
-  ObjectInterest: 1
-  Flags: 262145
-=======
   SendPriority: 1
   Flags: 131074
->>>>>>> Stashed changes
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 2071398470}
@@ -2803,67 +2796,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1001 &2097989054
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: -0.23
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 0.41
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -0.5
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1099623874961990390, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2391579266404389304, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: m_Name
-      value: Consumable
-      objectReference: {fileID: 0}
-    - target: {fileID: 8741719663855981334, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
-      propertyPath: SortKey
-      value: 2552115931
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: e8a56a8a97927c74a98c450caf64316e, type: 3}
 --- !u!1 &2112020499
 GameObject:
   m_ObjectHideFlags: 0
@@ -2991,11 +2923,7 @@ SceneRoots:
   - {fileID: 1156156091}
   - {fileID: 1595396390}
   - {fileID: 20686354}
-<<<<<<< Updated upstream
-  - {fileID: 2097989054}
-=======
   - {fileID: 907513237}
   - {fileID: 405012531}
   - {fileID: 536379101}
   - {fileID: 1486248609}
->>>>>>> Stashed changes

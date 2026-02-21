@@ -8,20 +8,6 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-<<<<<<< Updated upstream
-  - component: {fileID: 1667190673316678912}
-  - component: {fileID: 2565785972962849474}
-  - component: {fileID: 2262371025355577879}
-  - component: {fileID: 8869131785959224988}
-  - component: {fileID: 6024851838389980821}
-  - component: {fileID: 4117052583791421588}
-  - component: {fileID: 2655810558898554722}
-  - component: {fileID: 5019044117521280590}
-  - component: {fileID: -4904921099284617301}
-  - component: {fileID: -3986375305496973656}
-  - component: {fileID: -388410387962324379}
-  - component: {fileID: 6573959723260307520}
-=======
   - component: {fileID: 1304684302100246030}
   - component: {fileID: 4547913733529349706}
   - component: {fileID: 1668854386354945037}
@@ -35,7 +21,6 @@ GameObject:
   - component: {fileID: 2425656049102473562}
   - component: {fileID: 3266080698283577001}
   - component: {fileID: 2183094775412403505}
->>>>>>> Stashed changes
   m_Layer: 0
   m_Name: PlayerBall
   m_TagString: Player
@@ -218,15 +203,10 @@ MonoBehaviour:
   Flags: 262402
   NestedObjects: []
   NetworkedBehaviours:
-<<<<<<< Updated upstream
-  - {fileID: -388410387962324379}
-  - {fileID: 6573959723260307520}
-=======
   - {fileID: 3266080698283577001}
   - {fileID: 4500265884844140821}
   - {fileID: 2425656049102473562}
   - {fileID: 2183094775412403505}
->>>>>>> Stashed changes
   ForceRemoteRenderTimeframe: 0
 --- !u!114 &4500265884844140821
 MonoBehaviour:
@@ -242,8 +222,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Project.Networking.Fusion.NetworkPlayerController
   moveConfig: {fileID: 11400000, guid: c9c8d9f8a13369e47b3704051ccb90aa, type: 2}
   gameConfig: {fileID: 11400000, guid: 013bea5367083404fb67f22860c1b645, type: 2}
-<<<<<<< Updated upstream
-=======
   steeringResponsiveness: 0.55
   reverseResponsiveness: 0.35
   highSpeedTurnReduction: 0.65
@@ -336,4 +314,3 @@ DefaultAsset:
   m_Message: This default asset was generated because the worker process has crashed
     during last import.
   m_IsWarning: 1
->>>>>>> Stashed changes

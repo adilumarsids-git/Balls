@@ -147,12 +147,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Project.Game.Consumables.NetworkConsumable
   _IsActive:
-<<<<<<< Updated upstream
-    _value: 1
-  sizeMultiplier: 1.15
-  speedMultiplier: 1.1
-  massMultiplier: 1.1
-=======
     RawValue: 1
   config: {fileID: 11400000, guid: 9e21fca921982c14b8b9a897d35efa15, type: 2}
 --- !u!114 &9011362115666694736
@@ -167,4 +161,3 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d8649e493b9daaf41bf5f8caec093d3c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DistanceBasedAuthority
->>>>>>> Stashed changes

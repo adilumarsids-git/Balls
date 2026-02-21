@@ -21,9 +21,6 @@ namespace Project.Networking.Fusion
         [Header("Configs (ScriptableObjects)")]
         [SerializeField] private TopDownMovementConfigSO moveConfig;
         [SerializeField] private GameConfigSO gameConfig;
-<<<<<<< Updated upstream
-        [Networked] private NetworkBool AuthorityRequested { get; set; }
-=======
 
         [Header("Ball Feel Tweaks")]
         [Tooltip("How quickly the ball responds to steering. Lower = more slippery/drifty.")]
@@ -45,18 +42,10 @@ namespace Project.Networking.Fusion
         [Tooltip("Sideways grip. Higher = less drifting. For ball feel keep this low-ish.")]
         [Range(0f, 2.5f)]
         [SerializeField] private float sidewaysGripMultiplier = 0.75f;
->>>>>>> Stashed changes
 
         private Rigidbody rb;
         private PlayerStats stats;
 
-<<<<<<< Updated upstream
-        // Burst timers (networked)
-        [Networked] private TickTimer BoostActive { get; set; }
-        [Networked] private TickTimer BoostCooldown { get; set; }
-
-        // Remember last direction for boost when input is tiny
-=======
         private Vector3 _baseScale;
 
         // ===== Networked INPUT (StateAuthority writes these) =====
@@ -68,7 +57,6 @@ namespace Project.Networking.Fusion
         [Networked] private TickTimer BoostCooldownTimer { get; set; }
 
         // Other networked state
->>>>>>> Stashed changes
         [Networked] private Vector2 LastMoveDir { get; set; }
         [Networked] public NetworkString<_16> PlayerName { get; private set; }
 
@@ -85,30 +73,12 @@ namespace Project.Networking.Fusion
 
             if (LastMoveDir == Vector2.zero)
                 LastMoveDir = Vector2.up;
+
             if (Object.HasStateAuthority && PlayerName.ToString().Length == 0)
-            {
                 SetPlayerName($"P{Object.InputAuthority.RawEncoded}");
-<<<<<<< Updated upstream
-            }
-
-            // ✅ Critical: in Shared mode, clients must request StateAuthority for their own physics object
-            if (Object.HasInputAuthority && !Object.HasStateAuthority && !AuthorityRequested)
-            {
-                AuthorityRequested = true;
-                Object.RequestStateAuthority();
-            }
-
-            // Optional debug (remove later)
-            Debug.Log($"Spawned {name} Local={Runner.LocalPlayer} InputAuth={Object.InputAuthority} HasInputAuth={Object.HasInputAuthority} HasStateAuth={Object.HasStateAuthority}");
-
-        }
-
-
-=======
         }
 
         /// INPUT MUST BE READ HERE (Fusion tick), NOT in Unity FixedUpdate.
->>>>>>> Stashed changes
         public override void FixedUpdateNetwork()
         {
             if (moveConfig == null || gameConfig == null) return;
@@ -130,16 +100,8 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-<<<<<<< Updated upstream
-            if (moveConfig == null || gameConfig == null) return;
-
-            // Only the peer with StateAuthority should drive physics for this object.
-            // In Shared Mode we will assign StateAuthority = InputAuthority for each player object.
-            if (!Object.HasStateAuthority) return;
-=======
             if (!Object.HasStateAuthority)
                 return;
->>>>>>> Stashed changes
 
             // Read Fusion input
             NetInput input;
@@ -151,59 +113,6 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-<<<<<<< Updated upstream
-            Vector2 move = input.Move;
-            if (move.sqrMagnitude > 0.0001f)
-                LastMoveDir = move;
-
-            float speedBonus = stats != null ? stats.SpeedBonus : 0f;
-
-            bool boostingNow = BoostActive.IsRunning;
-            float multiplier = boostingNow ? gameConfig.boostMultiplier : 1f;
-
-            float targetMax = (moveConfig.maxSpeed + speedBonus) * SpeedMul;
-            float accel = moveConfig.acceleration * SpeedMul;
-
-            // Current velocity XZ
-            Vector2 v = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
-
-            // Desired velocity XZ
-            Vector2 desired = move * (moveConfig.baseSpeed + SpeedMul);
-            Vector2 delta = desired - v;
-
-            // Accelerate
-            Vector2 force = Vector2.ClampMagnitude(delta * accel, accel);
-            rb.AddForce(new Vector3(force.x, 0f, force.y), ForceMode.Acceleration);
-
-            // Stop damping
-            if (move.sqrMagnitude < 0.0001f)
-            {
-                Vector2 damp = -v * moveConfig.stopDamping;
-                rb.AddForce(new Vector3(damp.x, 0f, damp.y), ForceMode.Acceleration);
-            }
-
-            // Clamp XZ speed
-            Vector2 v2 = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
-            if (v2.magnitude > targetMax)
-            {
-                v2 = v2.normalized * targetMax;
-                rb.linearVelocity = new Vector3(v2.x, rb.linearVelocity.y, v2.y);
-            }
-
-            // Handle press-to-burst boost
-            if (input.Boost && !BoostCooldown.IsRunning)
-            {
-                Vector2 dir = move.sqrMagnitude > 0.0001f ? move : LastMoveDir;
-                if (dir.sqrMagnitude > 0.0001f)
-                {
-                    // impulse
-                    rb.AddForce(new Vector3(dir.x, 0f, dir.y) * 6.5f, ForceMode.VelocityChange);
-
-                    BoostActive = TickTimer.CreateFromSeconds(Runner, gameConfig.boostBurstDuration);
-                    BoostCooldown = TickTimer.CreateFromSeconds(Runner, gameConfig.boostCooldown);
-                }
-            }
-=======
             MoveInput = input.Move;
             BoostHeld = input.Boost;
 
@@ -319,7 +228,6 @@ namespace Project.Networking.Fusion
             }
 
             rb.mass = Mathf.Max(0.1f, rb.mass);
->>>>>>> Stashed changes
         }
 
         public void SetPlayerName(string name)
@@ -329,41 +237,29 @@ namespace Project.Networking.Fusion
             if (string.IsNullOrWhiteSpace(name))
                 name = $"P{Object.InputAuthority.RawEncoded}";
 
-            // Trim to be safe
             name = name.Trim();
             if (name.Length > 16) name = name.Substring(0, 16);
 
             PlayerName = name;
-            gameObject.name = name; // helps editor/hierarchy debugging
+            gameObject.name = name;
         }
 
         public void OnConsumablePickup(float sizeMul, float speedMul, float massMul)
         {
-            // Only StateAuthority should change physics-affecting values
             if (!Object.HasStateAuthority) return;
 
             SizeMul *= sizeMul;
-            SpeedMul = Mathf.Clamp(SpeedMul * speedMul, 0.5f, 3f);
+            SpeedMul = Mathf.Clamp(SpeedMul * speedMul, 0.5f, 4f);
             MassMul *= massMul;
 
-<<<<<<< Updated upstream
-            // Apply locally (StateAuthority simulates)
-            transform.localScale *= sizeMul;
-
-=======
->>>>>>> Stashed changes
             if (rb != null)
                 rb.mass *= massMul;
         }
 
-<<<<<<< Updated upstream
-
-=======
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
         public void RPC_ApplyConsumableToAuthority(float sizeMul, float speedMul, float massMul)
         {
             OnConsumablePickup(sizeMul, speedMul, massMul);
         }
->>>>>>> Stashed changes
     }
 }

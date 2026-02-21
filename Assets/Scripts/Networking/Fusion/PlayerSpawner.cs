@@ -66,7 +66,7 @@ namespace Project.Networking.Fusion
             int index = (Mathf.Abs(player.RawEncoded) % usable) + 1;
             Transform t = spawnPoints[index];
 
-            var obj = runner.Spawn(playerPrefab, t.position, Quaternion.identity, player);
+            var obj = runner.Spawn(playerPrefab, t.position, t.rotation, player);
 
             if (player == runner.LocalPlayer)
                 localPlayerObject = obj;

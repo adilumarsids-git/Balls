@@ -1,11 +1,8 @@
 ﻿using Fusion;
 using UnityEngine;
 using Project.Gameplay.Player;
-<<<<<<< Updated upstream
-=======
 using Project.Data;
 using Project.Networking.Fusion;
->>>>>>> Stashed changes
 
 namespace Project.Game.Consumables
 {
@@ -14,12 +11,6 @@ namespace Project.Game.Consumables
     {
         [Networked] public NetworkBool IsActive { get; private set; } = true;
 
-<<<<<<< Updated upstream
-        // Optional: you can sync a type id later (different consumables)
-        [SerializeField] private float sizeMultiplier = 1.15f;
-        [SerializeField] private float speedMultiplier = 1.10f;
-        [SerializeField] private float massMultiplier = 1.10f;
-=======
         [SerializeField] private ConsumableConfigSO config;
 
         private Renderer[] cachedRenderers;
@@ -51,7 +42,6 @@ namespace Project.Game.Consumables
             if (cachedColliders == null || cachedColliders.Length == 0)
                 cachedColliders = GetComponentsInChildren<Collider>(true);
         }
->>>>>>> Stashed changes
 
         private void OnTriggerEnter(Collider other)
         {
@@ -70,16 +60,6 @@ namespace Project.Game.Consumables
             if (flow == null || !flow.IsReady) return;
             if (flow.State != MatchFlowState.Playing) return;
 
-<<<<<<< Updated upstream
-            // Report pickup to master (single source of truth)
-            flow.RPC_ReportConsumablePickup(Object, playerObj, sizeMultiplier, speedMultiplier, massMultiplier);
-        }
-
-        public void SetActiveVisual(bool active)
-        {
-            // Local visual control
-            gameObject.SetActive(active);
-=======
             if (config == null) return;
 
             float sizeMul = 1f + (config.sizeAdd * config.sizeScaleFactor);
@@ -124,7 +104,6 @@ namespace Project.Game.Consumables
 
             foreach (var r in cachedRenderers) r.enabled = active;
             foreach (var c in cachedColliders) c.enabled = active;
->>>>>>> Stashed changes
         }
     }
 }

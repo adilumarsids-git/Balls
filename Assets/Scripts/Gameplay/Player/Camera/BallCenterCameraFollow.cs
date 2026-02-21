@@ -1,113 +1,118 @@
 using Fusion;
 using UnityEngine;
 
+/// Local-player-only camera follow for Shared mode.
+/// - Attaches to the local player's ball only.
+/// - Keeps camera behind the ball using ball forward on XZ.
+/// - Exposes planar forward/right basis for camera-relative input.
 public class BallCenterCameraFollow : NetworkBehaviour
 {
-    [Header("Center Point (Scene Object)")]
-    [Tooltip("Drag your center point transform here. If left empty, we'll try to find by name/tag.")]
-    public Transform centerPoint;
-
-    [Tooltip("If centerPoint is not assigned, we will try to find a GameObject by this name.")]
-    public string centerPointName = "CenterPoint";
-
     [Header("Camera Placement")]
-    public float distanceBehindBall = 10f; // how far behind
-    public float height = 8f;              // how high
-    public float positionLerp = 10f;       // smooth follow
-    public float snapDistance = 8f;        // snap if too far (prevents long catch-up)
+    [SerializeField] private float distanceBehindBall = 10f;
+    [SerializeField] private float height = 8f;
+    [SerializeField] private float positionLerp = 12f;
+    [SerializeField] private float rotationLerp = 14f;
+    [SerializeField] private float snapDistance = 8f;
 
-    [Header("Look")]
-    public bool lookAtCenter = true;       // always look at center
-    public bool lookAtBallInstead = false; // optional, if you prefer camera to look at ball
+    private Transform _cam;
+    private bool _active;
 
-    private Transform cam;
-    private bool active;
+    public static BallCenterCameraFollow LocalInstance { get; private set; }
 
     public override void Spawned()
     {
-        // Only local player controls camera
-        if (!Object.HasInputAuthority) return;
+        // Only local player controls the camera.
+        if (!Object.HasInputAuthority)
+            return;
 
-        cam = Camera.main != null ? Camera.main.transform : null;
-        if (cam == null)
+        var mainCam = Camera.main;
+        if (mainCam == null)
         {
             Debug.LogWarning("[BallCenterCameraFollow] No Camera.main found. Ensure Main Camera is tagged MainCamera.");
             return;
         }
 
-        // Resolve center point if not assigned
-        if (centerPoint == null)
-        {
-            var go = GameObject.Find(centerPointName);
-            if (go != null) centerPoint = go.transform;
-        }
+        _cam = mainCam.transform;
+        _active = true;
+        LocalInstance = this;
 
-        if (centerPoint == null)
-        {
-            Debug.LogWarning($"[BallCenterCameraFollow] Center point not found. Assign it in inspector or name it '{centerPointName}'.");
-            return;
-        }
-
-        active = true;
-
-        // Snap immediately on spawn
         SnapNow();
+    }
+
+    public override void Despawned(NetworkRunner runner, bool hasState)
+    {
+        if (LocalInstance == this)
+            LocalInstance = null;
+
+        _active = false;
+    }
+
+    public bool TryGetPlanarBasis(out Vector3 forward, out Vector3 right)
+    {
+        forward = Vector3.zero;
+        right = Vector3.zero;
+
+        if (!_active || _cam == null)
+            return false;
+
+        forward = Vector3.ProjectOnPlane(_cam.forward, Vector3.up);
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+
+        forward.Normalize();
+        right = Vector3.Cross(Vector3.up, forward).normalized;
+        return true;
     }
 
     private void LateUpdate()
     {
-        if (!active || cam == null || centerPoint == null) return;
+        if (!_active || _cam == null)
+            return;
 
-        // Direction from center to ball (outward)
-        Vector3 outward = (transform.position - centerPoint.position);
-        outward.y = 0f;
+        Vector3 planarForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+        if (planarForward.sqrMagnitude < 0.0001f)
+            planarForward = Vector3.forward;
 
-        if (outward.sqrMagnitude < 0.0001f)
-            outward = Vector3.forward;
+        planarForward.Normalize();
 
-        outward.Normalize();
-
-        // Camera behind ball (further outward) + height
-        Vector3 targetPos = transform.position + outward * distanceBehindBall + Vector3.up * height;
-
-        float dist = Vector3.Distance(cam.position, targetPos);
+        Vector3 targetPos = transform.position - planarForward * distanceBehindBall + Vector3.up * height;
+        float dist = Vector3.Distance(_cam.position, targetPos);
 
         if (dist > snapDistance)
         {
-            cam.position = targetPos;
+            _cam.position = targetPos;
         }
         else
         {
-            float t = 1f - Mathf.Exp(-positionLerp * Time.deltaTime);
-            cam.position = Vector3.Lerp(cam.position, targetPos, t);
+            float pt = 1f - Mathf.Exp(-positionLerp * Time.deltaTime);
+            _cam.position = Vector3.Lerp(_cam.position, targetPos, pt);
         }
 
-        // Rotation: always stable up, no roll
-        if (lookAtBallInstead)
-        {
-            cam.rotation = Quaternion.LookRotation((transform.position - cam.position).normalized, Vector3.up);
-        }
-        else if (lookAtCenter)
-        {
-            cam.rotation = Quaternion.LookRotation((centerPoint.position - cam.position).normalized, Vector3.up);
-        }
+        Vector3 lookDir = transform.position - _cam.position;
+        if (lookDir.sqrMagnitude < 0.0001f)
+            lookDir = planarForward;
+
+        Quaternion targetRot = Quaternion.LookRotation(lookDir.normalized, Vector3.up);
+        float rt = 1f - Mathf.Exp(-rotationLerp * Time.deltaTime);
+        _cam.rotation = Quaternion.Slerp(_cam.rotation, targetRot, rt);
     }
 
     private void SnapNow()
     {
-        Vector3 outward = (transform.position - centerPoint.position);
-        outward.y = 0f;
+        if (_cam == null)
+            return;
 
-        if (outward.sqrMagnitude < 0.0001f)
-            outward = Vector3.forward;
+        Vector3 planarForward = Vector3.ProjectOnPlane(transform.forward, Vector3.up);
+        if (planarForward.sqrMagnitude < 0.0001f)
+            planarForward = Vector3.forward;
 
-        outward.Normalize();
+        planarForward.Normalize();
 
-        cam.position = transform.position + outward * distanceBehindBall + Vector3.up * height;
+        _cam.position = transform.position - planarForward * distanceBehindBall + Vector3.up * height;
+        Vector3 lookDir = transform.position - _cam.position;
+        if (lookDir.sqrMagnitude < 0.0001f)
+            lookDir = planarForward;
 
-        if (lookAtBallInstead)
-            cam.rotation = Quaternion.LookRotation((transform.position - cam.position).normalized, Vector3.up);
-        else
-            cam.rotation = Quaternion.LookRotation((centerPoint.position - cam.position).normalized, Vector3.up);
+        _cam.rotation = Quaternion.LookRotation(lookDir.normalized, Vector3.up);
     }
 }

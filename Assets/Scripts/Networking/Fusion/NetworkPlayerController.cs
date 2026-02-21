@@ -134,11 +134,34 @@ namespace Project.Networking.Fusion
                 rb.mass = targetMass;
         }
 
+
+        private Vector2 ResolveMoveDirection(Vector2 rawInput)
+        {
+            Vector2 normalized = rawInput.normalized;
+
+            // In Shared mode owner == local player, so this gives camera-relative controls
+            // without affecting remote proxies.
+            if (Object != null && Object.HasInputAuthority && BallCenterCameraFollow.LocalInstance != null)
+            {
+                if (BallCenterCameraFollow.LocalInstance.TryGetPlanarBasis(out Vector3 camForward, out Vector3 camRight))
+                {
+                    Vector3 world = camForward * normalized.y + camRight * normalized.x;
+                    Vector2 world2D = new Vector2(world.x, world.z);
+                    if (world2D.sqrMagnitude > 0.0001f)
+                        return world2D.normalized;
+                }
+            }
+
+            Vector3 fallback = transform.forward * normalized.y + transform.right * normalized.x;
+            Vector2 fallback2D = new Vector2(fallback.x, fallback.z);
+            return fallback2D.sqrMagnitude > 0.0001f ? fallback2D.normalized : LastMoveDir;
+        }
+
         private void SimulateOwnedPhysics(float dt)
         {
             Vector2 input = MoveInput;
             bool hasInput = input.sqrMagnitude > 0.0001f;
-            Vector2 inputDir = hasInput ? input.normalized : LastMoveDir;
+            Vector2 inputDir = hasInput ? ResolveMoveDirection(input) : LastMoveDir;
 
             if (hasInput)
                 LastMoveDir = inputDir;

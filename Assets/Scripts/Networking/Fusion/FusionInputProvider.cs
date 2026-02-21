@@ -1,6 +1,7 @@
 ﻿using System;
 using Fusion;
 using Fusion.Sockets;
+using Project.Gameplay.Player.Camera;
 using UnityEngine;
 
 namespace Project.Networking.Fusion
@@ -12,8 +13,30 @@ namespace Project.Networking.Fusion
 
         private void Update()
         {
-            move = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
-            if (move.sqrMagnitude > 1f) move.Normalize();
+            float horizontal = Input.GetAxisRaw("Horizontal");
+            float vertical = Input.GetAxisRaw("Vertical");
+
+            var activeCam = StaticSpawnCameraManager.GetActiveCamera();
+            if (activeCam != null)
+            {
+                Vector3 camForward3 = activeCam.transform.forward;
+                camForward3.y = 0f;
+                camForward3.Normalize();
+
+                Vector3 camRight3 = activeCam.transform.right;
+                camRight3.y = 0f;
+                camRight3.Normalize();
+
+                Vector3 moveDir = camForward3 * vertical + camRight3 * horizontal;
+                move = new Vector2(moveDir.x, moveDir.z);
+            }
+            else
+            {
+                move = new Vector2(horizontal, vertical);
+            }
+
+            if (move.sqrMagnitude > 1f)
+                move.Normalize();
 
             boostHeld = Input.GetKey(KeyCode.Space);
         }

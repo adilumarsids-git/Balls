@@ -2,6 +2,7 @@
 using UnityEngine;
 using Project.Data;
 using Project.Gameplay.Player.Stats;
+using Project.Gameplay.Player.Camera;
 
 namespace Project.Networking.Fusion
 {
@@ -59,10 +60,13 @@ namespace Project.Networking.Fusion
         // Other networked state
         [Networked] private Vector2 LastMoveDir { get; set; }
         [Networked] public NetworkString<_16> PlayerName { get; private set; }
+        [Networked] public int SpawnIndex { get; private set; }
 
         [Networked] private float SpeedMul { get; set; } = 1f;
         [Networked] private float SizeMul { get; set; } = 1f;
         [Networked] private float MassMul { get; set; } = 1f;
+
+        private int _lastAppliedCameraIndex = -1;
 
         public override void Spawned()
         {
@@ -76,6 +80,8 @@ namespace Project.Networking.Fusion
 
             if (Object.HasStateAuthority && PlayerName.ToString().Length == 0)
                 SetPlayerName($"P{Object.InputAuthority.RawEncoded}");
+
+            TryApplyLocalStaticCamera();
         }
 
         /// INPUT MUST BE READ HERE (Fusion tick), NOT in Unity FixedUpdate.
@@ -131,6 +137,8 @@ namespace Project.Networking.Fusion
         private void FixedUpdate()
         {
             if (rb == null || moveConfig == null || gameConfig == null) return;
+
+            TryApplyLocalStaticCamera();
 
             // Apply size locally for everyone
             transform.localScale = _baseScale * SizeMul;
@@ -228,6 +236,26 @@ namespace Project.Networking.Fusion
             }
 
             rb.mass = Mathf.Max(0.1f, rb.mass);
+        }
+
+        private void TryApplyLocalStaticCamera()
+        {
+            if (!Object.HasInputAuthority)
+                return;
+
+            if (_lastAppliedCameraIndex == SpawnIndex)
+                return;
+
+            _lastAppliedCameraIndex = SpawnIndex;
+            StaticSpawnCameraManager.SetActiveCameraForSpawn(SpawnIndex);
+        }
+
+        public void SetSpawnIndex(int index)
+        {
+            if (!Object.HasStateAuthority)
+                return;
+
+            SpawnIndex = Mathf.Max(0, index);
         }
 
         public void SetPlayerName(string name)

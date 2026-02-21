@@ -4,7 +4,7 @@ namespace Project.Gameplay.Player.Camera
 {
     public class StaticSpawnCameraManager : MonoBehaviour
     {
-        [SerializeField] private Camera[] spawnCameras = new Camera[4];
+        [SerializeField] private global::UnityEngine.Camera[] spawnCameras = new global::UnityEngine.Camera[4];
 
         private static StaticSpawnCameraManager _instance;
 
@@ -14,7 +14,7 @@ namespace Project.Gameplay.Player.Camera
             DisableAllCameras();
         }
 
-        public static Camera GetActiveCamera()
+        public static global::UnityEngine.Camera GetActiveCamera()
         {
             return _instance != null ? _instance.GetCurrentEnabledCamera() : null;
         }
@@ -48,7 +48,7 @@ namespace Project.Gameplay.Player.Camera
             }
         }
 
-        private Camera GetCurrentEnabledCamera()
+        private global::UnityEngine.Camera GetCurrentEnabledCamera()
         {
             if (spawnCameras == null)
                 return null;

@@ -19,10 +19,10 @@ namespace Project.Networking.Fusion
         [Header("Latency Tuning")]
         [SerializeField] private bool optimizeLocalLatency = true;
         [SerializeField] private int targetFrameRate = 120;
-        [SerializeField] private float physicsTickRate = 60f;
 
         private NetworkRunner runner;
         private PlayerSpawner spawner;
+        private bool isReturningToMenu;
 
         public event Action<IReadOnlyList<SessionInfo>> SessionListChanged;
 
@@ -30,6 +30,7 @@ namespace Project.Networking.Fusion
         {
             DontDestroyOnLoad(gameObject);
 
+            isReturningToMenu = false;
             ApplyLatencyTuning();
             runner = GetComponent<NetworkRunner>();
             spawner = GetComponent<PlayerSpawner>();
@@ -56,17 +57,17 @@ namespace Project.Networking.Fusion
             if (targetFrameRate > 0)
                 Application.targetFrameRate = targetFrameRate;
 
-            if (physicsTickRate > 1f)
-                Time.fixedDeltaTime = 1f / physicsTickRate;
         }
 
         public async Task JoinPublicLobby()
         {
+            isReturningToMenu = false;
             await runner.JoinSessionLobby(lobby);
         }
 
         public async Task Host(string roomName, int mapBuildIndex, int maxPlayers = 4)
         {
+            isReturningToMenu = false;
             var sceneManager = GetSceneManager();
 
             var sceneInfo = new NetworkSceneInfo();
@@ -96,6 +97,7 @@ namespace Project.Networking.Fusion
 
         public async Task Join(string roomName)
         {
+            isReturningToMenu = false;
             var sceneManager = GetSceneManager();
 
             var args = new StartGameArgs
@@ -139,11 +141,28 @@ namespace Project.Networking.Fusion
 
         private void ReturnToMenu()
         {
-            var scene = SceneManager.GetActiveScene();
-            if (scene.buildIndex == menuSceneBuildIndex)
+            if (isReturningToMenu)
                 return;
 
-            SceneManager.LoadScene(menuSceneBuildIndex);
+            isReturningToMenu = true;
+
+            var scene = SceneManager.GetActiveScene();
+            if (scene.buildIndex != menuSceneBuildIndex)
+                SceneManager.LoadScene(menuSceneBuildIndex);
+        }
+
+        public void ShutdownAndReturnToMenu()
+        {
+            if (isReturningToMenu)
+                return;
+
+            if (runner != null && runner.IsRunning)
+            {
+                _ = runner.Shutdown();
+                return;
+            }
+
+            ReturnToMenu();
         }
 
         // ===== Unused callbacks (kept empty) =====

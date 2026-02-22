@@ -348,12 +348,20 @@ namespace Project.Networking.Fusion
         [Rpc(RpcSources.All, RpcTargets.All)]
         private void RPC_BackToMenu(int menuBuildIndex)
         {
-            // Cleanly exit the session on each client
+            // Use launcher-controlled shutdown path to avoid double scene-load races in WebGL.
+            var launcher = FindObjectOfType<FusionLauncher>();
+            if (launcher != null)
+            {
+                launcher.ShutdownAndReturnToMenu();
+                return;
+            }
+
+            // Fallback if launcher is unavailable.
             var r = NetworkRunner.GetRunnerForGameObject(gameObject);
             if (r != null)
-                r.Shutdown();
-
-            SceneManager.LoadScene(menuBuildIndex);
+                _ = r.Shutdown();
+            else
+                SceneManager.LoadScene(menuBuildIndex);
         }
 
         [Rpc(RpcSources.All, RpcTargets.All)]

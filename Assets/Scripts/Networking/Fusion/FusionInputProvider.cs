@@ -12,8 +12,31 @@ namespace Project.Networking.Fusion
 
         private void Update()
         {
-            move = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
-            if (move.sqrMagnitude > 1f) move.Normalize();
+            Vector2 rawMove = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
+            if (rawMove.sqrMagnitude > 1f) rawMove.Normalize();
+
+            // Camera-relative movement on XZ plane.
+            // NetInput.Move is world-space planar direction (x = world X, y = world Z).
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                Transform camT = cam.transform;
+
+                Vector3 camForward = Vector3.ProjectOnPlane(camT.forward, Vector3.up).normalized;
+                Vector3 camRight = Vector3.ProjectOnPlane(camT.right, Vector3.up).normalized;
+
+                if (camForward.sqrMagnitude < 0.0001f) camForward = Vector3.forward;
+                if (camRight.sqrMagnitude < 0.0001f) camRight = Vector3.right;
+
+                Vector3 worldMove = camRight * rawMove.x + camForward * rawMove.y;
+                move = new Vector2(worldMove.x, worldMove.z);
+                if (move.sqrMagnitude > 1f) move.Normalize();
+            }
+            else
+            {
+                // Fallback if no camera is found.
+                move = rawMove;
+            }
 
             boostHeld = Input.GetKey(KeyCode.Space);
         }

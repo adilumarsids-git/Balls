@@ -7,7 +7,7 @@ namespace Project.Networking.Fusion
     {
         [Header("Network Prefab")]
         [Tooltip("Optional direct reference. If empty, we load from Resources path below.")]
-        [SerializeField] private NetworkObject playerPrefab;
+        [SerializeField] private GameObject playerPrefab;
 
         [Tooltip("Resources path for player prefab (without .prefab).")]
         [SerializeField] private string playerPrefabResourcesPath = "PlayerBall";
@@ -43,7 +43,7 @@ namespace Project.Networking.Fusion
                 prefabGo = Resources.Load<GameObject>("Networked/PlayerBall");
 
             if (prefabGo != null)
-                playerPrefab = prefabGo.GetComponent<NetworkObject>();
+                playerPrefab = prefabGo;
 
             if (playerPrefab == null)
             {
@@ -51,7 +51,7 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            Debug.Log("[PlayerSpawner] Loaded PlayerBall GameObject from Resources and resolved NetworkObject.");
+            Debug.Log("[PlayerSpawner] Loaded PlayerBall GameObject from Resources.");
         }
 
         public void RefreshSpawnPoints()
@@ -84,7 +84,14 @@ namespace Project.Networking.Fusion
 
             if (playerPrefab == null)
             {
-                Debug.LogError("[PlayerSpawner] playerPrefab is null. Cannot spawn player.");
+                Debug.LogError("[PlayerSpawner] playerPrefab GameObject is null. Cannot spawn player.");
+                return;
+            }
+
+            var prefabNetObj = playerPrefab.GetComponent<NetworkObject>();
+            if (prefabNetObj == null)
+            {
+                Debug.LogError("[PlayerSpawner] playerPrefab is missing NetworkObject component.");
                 return;
             }
 
@@ -113,7 +120,7 @@ namespace Project.Networking.Fusion
             Transform t = spawnPoints[index];
 
             Quaternion spawnRotation = GetSpawnRotationFacingCenter(t.position);
-            var obj = runner.Spawn(playerPrefab, t.position, spawnRotation, player);
+            var obj = runner.Spawn(prefabNetObj, t.position, spawnRotation, player);
 
             if (player == runner.LocalPlayer)
                 localPlayerObject = obj;

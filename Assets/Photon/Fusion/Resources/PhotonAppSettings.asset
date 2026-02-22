@@ -20,7 +20,7 @@ MonoBehaviour:
     AppIdVoice: 
     AppVersion: FusionForecastPhysicsDemos2
     UseNameServer: 1
-    FixedRegion: asia
+    FixedRegion: ""
     Server: 
     Port: 0
     ProxyServer: 

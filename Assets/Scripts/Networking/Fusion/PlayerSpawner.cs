@@ -6,15 +6,53 @@ namespace Project.Networking.Fusion
     public class PlayerSpawner : MonoBehaviour
     {
         [Header("Network Prefab")]
-        [SerializeField] private NetworkPrefabRef playerPrefab;
+        [Tooltip("Optional direct reference. If empty, we load from Resources path below.")]
+        [SerializeField] private GameObject playerPrefab;
+
+        [Tooltip("Resources path for player prefab (without .prefab).")]
+        [SerializeField] private string playerPrefabResourcesPath = "PlayerBall";
 
         private NetworkRunner runner;
         private Transform[] spawnPoints;
 
+        [Header("Spawn Facing")]
+        [SerializeField] private Transform mapCenter;
+        [SerializeField] private string mapCenterName = "CenterPoint";
+
         // Keep track so we don't spawn twice for local player
         private NetworkObject localPlayerObject;
 
-        public void Init(NetworkRunner r) => runner = r;
+        public void Init(NetworkRunner r)
+        {
+            runner = r;
+            EnsurePlayerPrefabLoaded();
+        }
+
+        public void EnsurePlayerPrefabLoaded()
+        {
+            if (playerPrefab != null)
+                return;
+
+            // Primary path requested: load PlayerBall from Resources.
+            // IMPORTANT: load the prefab GameObject, then grab NetworkObject component.
+            // Loading NetworkObject sub-assets directly can resolve to subobject names (e.g. "PlayerBall 1") and fail in runtime spawning.
+            var prefabGo = Resources.Load<GameObject>(playerPrefabResourcesPath);
+
+            // Secondary fallback if kept in subfolder like Resources/Networked/PlayerBall.prefab
+            if (prefabGo == null)
+                prefabGo = Resources.Load<GameObject>("Networked/PlayerBall");
+
+            if (prefabGo != null)
+                playerPrefab = prefabGo;
+
+            if (playerPrefab == null)
+            {
+                Debug.LogError($"[PlayerSpawner] Could not load player prefab GameObject from Resources. Tried '{playerPrefabResourcesPath}' and 'Networked/PlayerBall'.");
+                return;
+            }
+
+            Debug.Log("[PlayerSpawner] Loaded PlayerBall GameObject from Resources.");
+        }
 
         public void RefreshSpawnPoints()
         {
@@ -42,6 +80,21 @@ namespace Project.Networking.Fusion
 
         public void SpawnPlayerFor(PlayerRef player)
         {
+            EnsurePlayerPrefabLoaded();
+
+            if (playerPrefab == null)
+            {
+                Debug.LogError("[PlayerSpawner] playerPrefab GameObject is null. Cannot spawn player.");
+                return;
+            }
+
+            var prefabNetObj = playerPrefab.GetComponent<NetworkObject>();
+            if (prefabNetObj == null)
+            {
+                Debug.LogError("[PlayerSpawner] playerPrefab is missing NetworkObject component.");
+                return;
+            }
+
             if (runner == null)
             {
                 Debug.LogError("Spawner missing runner.");
@@ -66,7 +119,8 @@ namespace Project.Networking.Fusion
             int index = (Mathf.Abs(player.RawEncoded) % usable) + 1;
             Transform t = spawnPoints[index];
 
-            var obj = runner.Spawn(playerPrefab, t.position, t.rotation, player);
+            Quaternion spawnRotation = GetSpawnRotationFacingCenter(t.position);
+            var obj = runner.Spawn(prefabNetObj, t.position, spawnRotation, player);
 
             if (player == runner.LocalPlayer)
                 localPlayerObject = obj;
@@ -76,7 +130,6 @@ namespace Project.Networking.Fusion
             {
                 // StateAuthority for local player is local in Shared Mode (since we spawned it)
                 ctrl.SetPlayerName(Project.Core.LocalProfile.GetName());
-
             }
 
             // Optional: register with match manager (fine for now)
@@ -85,6 +138,25 @@ namespace Project.Networking.Fusion
                 match.RegisterPlayer(obj);
 
             Debug.Log($"[Spawner] Local={runner.LocalPlayer} spawned for={player} obj.InputAuthority={obj.InputAuthority}");
+        }
+
+        private Quaternion GetSpawnRotationFacingCenter(Vector3 spawnPosition)
+        {
+            if (mapCenter == null && !string.IsNullOrWhiteSpace(mapCenterName))
+            {
+                var centerGo = GameObject.Find(mapCenterName);
+                if (centerGo != null)
+                    mapCenter = centerGo.transform;
+            }
+
+            Vector3 centerPos = mapCenter != null ? mapCenter.position : Vector3.zero;
+            Vector3 toCenter = centerPos - spawnPosition;
+            toCenter.y = 0f;
+
+            if (toCenter.sqrMagnitude < 0.0001f)
+                toCenter = Vector3.forward;
+
+            return Quaternion.LookRotation(toCenter.normalized, Vector3.up);
         }
     }
 }

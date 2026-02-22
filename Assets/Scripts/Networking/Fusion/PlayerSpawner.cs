@@ -7,11 +7,6 @@ namespace Project.Networking.Fusion
     {
         private const string DefaultPlayerBallGuid = "84678b33a96ec014099754767f666947";
 
-        [System.Serializable]
-        private struct NetworkPrefabRefWrapper
-        {
-            public NetworkPrefabRef value;
-        }
         [Header("Network Prefab")]
         [SerializeField] private NetworkPrefabRef playerPrefab;
 
@@ -37,12 +32,17 @@ namespace Project.Networking.Fusion
                 return;
 
             // Runtime fallback for auto-created launcher path (no scene-serialized spawner values).
-            var json = $"{{\"value\":{{\"RawGuidValue\":\"{DefaultPlayerBallGuid}\"}}}}";
-            var wrapper = JsonUtility.FromJson<NetworkPrefabRefWrapper>(json);
-            playerPrefab = wrapper.value;
+            // Use Unity serialization overwrite on THIS component so private [SerializeField] layout is respected.
+            var json = $"{{\"playerPrefab\":{\"RawGuidValue\":\"{DefaultPlayerBallGuid}\"}}";
+            JsonUtility.FromJsonOverwrite(json, this);
 
             if (!playerPrefab.IsValid)
+            {
                 Debug.LogError("[PlayerSpawner] Failed to assign default PlayerBall prefab reference.");
+                return;
+            }
+
+            Debug.Log("[PlayerSpawner] Assigned default PlayerBall prefab reference at runtime.");
         }
 
         public void RefreshSpawnPoints()
@@ -72,6 +72,12 @@ namespace Project.Networking.Fusion
         public void SpawnPlayerFor(PlayerRef player)
         {
             EnsureDefaultPlayerPrefabAssigned();
+
+            if (!playerPrefab.IsValid)
+            {
+                Debug.LogError("[PlayerSpawner] playerPrefab is still invalid. Cannot spawn player.");
+                return;
+            }
 
             if (runner == null)
             {

@@ -25,7 +25,6 @@ namespace Project.Networking.Fusion
 
         private NetworkRunner runner;
         private PlayerSpawner spawner;
-        private bool isReturningToMenu;
 
         public event Action<IReadOnlyList<SessionInfo>> SessionListChanged;
 
@@ -48,7 +47,6 @@ namespace Project.Networking.Fusion
         {
             DontDestroyOnLoad(gameObject);
 
-            isReturningToMenu = false;
             ApplyLatencyTuning();
             runner = GetComponent<NetworkRunner>();
             spawner = GetComponent<PlayerSpawner>();
@@ -80,13 +78,11 @@ namespace Project.Networking.Fusion
 
         public async Task JoinPublicLobby()
         {
-            isReturningToMenu = false;
             await runner.JoinSessionLobby(lobby);
         }
 
         public async Task Host(string roomName, int mapBuildIndex, int maxPlayers = 4)
         {
-            isReturningToMenu = false;
             var sceneManager = GetSceneManager();
 
             var sceneInfo = new NetworkSceneInfo();
@@ -116,7 +112,6 @@ namespace Project.Networking.Fusion
 
         public async Task Join(string roomName)
         {
-            isReturningToMenu = false;
             var sceneManager = GetSceneManager();
 
             var args = new StartGameArgs
@@ -160,28 +155,11 @@ namespace Project.Networking.Fusion
 
         private void ReturnToMenu()
         {
-            if (isReturningToMenu)
-                return;
-
-            isReturningToMenu = true;
-
             var scene = SceneManager.GetActiveScene();
-            if (scene.buildIndex != menuSceneBuildIndex)
-                SceneManager.LoadScene(menuSceneBuildIndex);
-        }
-
-        public void ShutdownAndReturnToMenu()
-        {
-            if (isReturningToMenu)
+            if (scene.buildIndex == menuSceneBuildIndex)
                 return;
 
-            if (runner != null && runner.IsRunning)
-            {
-                _ = runner.Shutdown();
-                return;
-            }
-
-            ReturnToMenu();
+            SceneManager.LoadScene(menuSceneBuildIndex);
         }
 
         // ===== Unused callbacks (kept empty) =====

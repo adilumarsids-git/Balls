@@ -31,6 +31,10 @@ namespace Project.Networking.Fusion
         [SerializeField] private float backToMenuDelay = 5f;
         [SerializeField] private int menuSceneBuildIndex = 2; // 02_Menu
 
+        [Header("Full Restart")]
+        [SerializeField] private int bootstrapSceneBuildIndex = 0; // 00_Bootstrap
+        [SerializeField] private float restartDelayAfterAnnounce = 1.5f;
+
         [Networked] public MatchFlowState State { get; private set; }
         [Networked] public int CurrentPlayers { get; private set; }
 
@@ -46,10 +50,15 @@ namespace Project.Networking.Fusion
         private NetworkConsumable activeConsumable;
         [Networked] private TickTimer ConsumableSpawnTimer { get; set; }
 
+        private MatchEndBootstrapRestart restartCoordinator;
+
         public override void Spawned()
         {
             Instance = this;
             IsReady = true;
+            restartCoordinator = GetComponent<MatchEndBootstrapRestart>();
+            if (restartCoordinator == null)
+                restartCoordinator = gameObject.AddComponent<MatchEndBootstrapRestart>();
 
             if (Runner.IsSharedModeMasterClient)
             {
@@ -83,16 +92,9 @@ namespace Project.Networking.Fusion
             // Always refresh player count while not shutdown
             CurrentPlayers = CountPlayers();
 
-            // Game over: wait then send everyone back to menu
+            // Game over: restart is triggered from winner announcement RPC.
             if (State == MatchFlowState.GameOver)
-            {
-                if (BackToMenuTimer.IsRunning && BackToMenuTimer.Expired(Runner))
-                {
-                    BackToMenuTimer = default;
-                    RPC_BackToMenu(menuSceneBuildIndex);
-                }
                 return;
-            }
 
             // If match already started, don’t auto-change state here
             if (State == MatchFlowState.Playing)
@@ -203,7 +205,6 @@ namespace Project.Networking.Fusion
 
                 RPC_AnnounceWinner(winnerObj, WinnerName);
 
-                BackToMenuTimer = TickTimer.CreateFromSeconds(Runner, backToMenuDelay);
             }
 
         }
@@ -314,6 +315,12 @@ namespace Project.Networking.Fusion
         private void RPC_AnnounceWinner(NetworkObject winnerObj, NetworkString<_32> winnerName)
         {
             Debug.Log($"Winner: {winnerName}");
+
+            // Full restart for everyone after result is announced.
+            if (restartCoordinator == null)
+                restartCoordinator = GetComponent<MatchEndBootstrapRestart>();
+            if (restartCoordinator != null)
+                restartCoordinator.ScheduleRestart(bootstrapSceneBuildIndex, restartDelayAfterAnnounce);
 
             // Only Shared master/state authority should submit to leaderboard
             if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority)

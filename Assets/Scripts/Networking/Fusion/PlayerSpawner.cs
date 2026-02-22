@@ -34,19 +34,24 @@ namespace Project.Networking.Fusion
                 return;
 
             // Primary path requested: load PlayerBall from Resources.
-            playerPrefab = Resources.Load<NetworkObject>(playerPrefabResourcesPath);
+            // IMPORTANT: load the prefab GameObject, then grab NetworkObject component.
+            // Loading NetworkObject sub-assets directly can resolve to subobject names (e.g. "PlayerBall 1") and fail in runtime spawning.
+            var prefabGo = Resources.Load<GameObject>(playerPrefabResourcesPath);
 
             // Secondary fallback if kept in subfolder like Resources/Networked/PlayerBall.prefab
-            if (playerPrefab == null)
-                playerPrefab = Resources.Load<NetworkObject>("Networked/PlayerBall");
+            if (prefabGo == null)
+                prefabGo = Resources.Load<GameObject>("Networked/PlayerBall");
+
+            if (prefabGo != null)
+                playerPrefab = prefabGo.GetComponent<NetworkObject>();
 
             if (playerPrefab == null)
             {
-                Debug.LogError($"[PlayerSpawner] Could not load player prefab from Resources. Tried '{playerPrefabResourcesPath}' and 'Networked/PlayerBall'.");
+                Debug.LogError($"[PlayerSpawner] Could not load player prefab GameObject from Resources. Tried '{playerPrefabResourcesPath}' and 'Networked/PlayerBall'.");
                 return;
             }
 
-            Debug.Log("[PlayerSpawner] Loaded PlayerBall prefab from Resources.");
+            Debug.Log("[PlayerSpawner] Loaded PlayerBall GameObject from Resources and resolved NetworkObject.");
         }
 
         public void RefreshSpawnPoints()

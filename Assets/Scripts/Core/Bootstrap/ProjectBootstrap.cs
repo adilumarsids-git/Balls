@@ -10,6 +10,11 @@ namespace Project.Core.Bootstrap
 
         private static bool booted;
 
+        public static void ResetBootStateForRestart()
+        {
+            booted = false;
+        }
+
         private void Awake()
         {
             if (booted)

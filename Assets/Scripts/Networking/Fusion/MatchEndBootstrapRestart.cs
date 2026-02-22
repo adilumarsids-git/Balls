@@ -1,4 +1,6 @@
 using System.Collections;
+using Fusion;
+using Project.Core.Bootstrap;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -25,6 +27,39 @@ namespace Project.Networking.Fusion
         {
             if (delaySeconds > 0f)
                 yield return new WaitForSeconds(delaySeconds);
+
+            // First, shutdown all active runners gracefully so Photon/Fusion starts clean next boot.
+            var runners = FindObjectsOfType<NetworkRunner>(true);
+            for (int i = 0; i < runners.Length; i++)
+            {
+                if (runners[i] != null && runners[i].IsRunning)
+                    _ = runners[i].Shutdown();
+            }
+
+            // Give shutdown callbacks a short window to finish.
+            float t = 0f;
+            const float maxWait = 1.0f;
+            while (t < maxWait)
+            {
+                bool anyRunning = false;
+                for (int i = 0; i < runners.Length; i++)
+                {
+                    if (runners[i] != null && runners[i].IsRunning)
+                    {
+                        anyRunning = true;
+                        break;
+                    }
+                }
+
+                if (!anyRunning)
+                    break;
+
+                t += Time.unscaledDeltaTime;
+                yield return null;
+            }
+
+            // Reset bootstrap static so loading scene 0 behaves like a truly fresh launch.
+            ProjectBootstrap.ResetBootStateForRestart();
 
             // Find the internal DontDestroyOnLoad scene and destroy all roots inside it.
             var ddolScene = GetDontDestroyOnLoadScene();

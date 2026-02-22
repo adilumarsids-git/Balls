@@ -5,6 +5,13 @@ namespace Project.Networking.Fusion
 {
     public class PlayerSpawner : MonoBehaviour
     {
+        private const string DefaultPlayerBallGuid = "84678b33a96ec014099754767f666947";
+
+        [System.Serializable]
+        private struct NetworkPrefabRefWrapper
+        {
+            public NetworkPrefabRef value;
+        }
         [Header("Network Prefab")]
         [SerializeField] private NetworkPrefabRef playerPrefab;
 
@@ -18,7 +25,25 @@ namespace Project.Networking.Fusion
         // Keep track so we don't spawn twice for local player
         private NetworkObject localPlayerObject;
 
-        public void Init(NetworkRunner r) => runner = r;
+        public void Init(NetworkRunner r)
+        {
+            runner = r;
+            EnsureDefaultPlayerPrefabAssigned();
+        }
+
+        public void EnsureDefaultPlayerPrefabAssigned()
+        {
+            if (playerPrefab.IsValid)
+                return;
+
+            // Runtime fallback for auto-created launcher path (no scene-serialized spawner values).
+            var json = $"{{\"value\":{{\"RawGuidValue\":\"{DefaultPlayerBallGuid}\"}}}}";
+            var wrapper = JsonUtility.FromJson<NetworkPrefabRefWrapper>(json);
+            playerPrefab = wrapper.value;
+
+            if (!playerPrefab.IsValid)
+                Debug.LogError("[PlayerSpawner] Failed to assign default PlayerBall prefab reference.");
+        }
 
         public void RefreshSpawnPoints()
         {
@@ -46,6 +71,8 @@ namespace Project.Networking.Fusion
 
         public void SpawnPlayerFor(PlayerRef player)
         {
+            EnsureDefaultPlayerPrefabAssigned();
+
             if (runner == null)
             {
                 Debug.LogError("Spawner missing runner.");

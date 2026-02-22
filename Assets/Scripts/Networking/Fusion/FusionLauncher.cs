@@ -36,10 +36,11 @@ namespace Project.Networking.Fusion
                 return existing;
 
             var go = new GameObject("FusionLauncher");
-            go.AddComponent<NetworkRunner>();
-            go.AddComponent<PlayerSpawner>();
-            go.AddComponent<FusionInputProvider>();
-            return go.AddComponent<FusionLauncher>();
+            var launcher = go.AddComponent<FusionLauncher>();
+            var spawner = go.GetComponent<PlayerSpawner>();
+            if (spawner != null)
+                spawner.EnsureDefaultPlayerPrefabAssigned();
+            return launcher;
         }
 
 
@@ -51,6 +52,7 @@ namespace Project.Networking.Fusion
             ApplyLatencyTuning();
             runner = GetComponent<NetworkRunner>();
             spawner = GetComponent<PlayerSpawner>();
+            spawner?.EnsureDefaultPlayerPrefabAssigned();
 
             runner.ProvideInput = true;
 

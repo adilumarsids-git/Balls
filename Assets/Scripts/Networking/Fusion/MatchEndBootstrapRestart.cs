@@ -7,8 +7,8 @@ using UnityEngine.SceneManagement;
 namespace Project.Networking.Fusion
 {
     /// <summary>
-    /// Performs a full client-side restart by clearing DontDestroyOnLoad objects
-    /// and loading the Bootstrap scene.
+    /// Performs a full client-side restart and returns to Bootstrap scene.
+    /// WebGL-safe: avoids deleting engine/plugin DDOL roots directly.
     /// </summary>
     public class MatchEndBootstrapRestart : MonoBehaviour
     {
@@ -28,7 +28,7 @@ namespace Project.Networking.Fusion
             if (delaySeconds > 0f)
                 yield return new WaitForSeconds(delaySeconds);
 
-            // First, shutdown all active runners gracefully so Photon/Fusion starts clean next boot.
+            // 1) Shutdown all active runners first.
             var runners = FindObjectsOfType<NetworkRunner>(true);
             for (int i = 0; i < runners.Length; i++)
             {
@@ -36,9 +36,9 @@ namespace Project.Networking.Fusion
                     _ = runners[i].Shutdown();
             }
 
-            // Give shutdown callbacks a short window to finish.
+            // Wait briefly for shutdown callbacks to complete.
             float t = 0f;
-            const float maxWait = 1.0f;
+            const float maxWait = 1.5f;
             while (t < maxWait)
             {
                 bool anyRunning = false;
@@ -58,25 +58,51 @@ namespace Project.Networking.Fusion
                 yield return null;
             }
 
-            // Reset bootstrap static so loading scene 0 behaves like a truly fresh launch.
+            // 2) Reset bootstrap static so scene 0 behaves like first app launch.
             ProjectBootstrap.ResetBootStateForRestart();
 
-            // Find the internal DontDestroyOnLoad scene and destroy all roots inside it.
-            var ddolScene = GetDontDestroyOnLoadScene();
-            if (ddolScene.IsValid())
-            {
-                var roots = ddolScene.GetRootGameObjects();
-                for (int i = 0; i < roots.Length; i++)
-                {
-                    if (roots[i] != null)
-                        Destroy(roots[i]);
-                }
-            }
+            // 3) Clear only project-owned DDOL roots (safe for WebGL runtime).
+            DestroyProjectOwnedDontDestroyObjects();
 
-            // Wait one frame so destroys are processed before loading bootstrap.
+            // 4) Give a frame for destroy queue to process then relaunch bootstrap.
             yield return null;
-
             SceneManager.LoadScene(bootstrapSceneBuildIndex, LoadSceneMode.Single);
+        }
+
+        private static void DestroyProjectOwnedDontDestroyObjects()
+        {
+            var ddolScene = GetDontDestroyOnLoadScene();
+            if (!ddolScene.IsValid())
+                return;
+
+            var roots = ddolScene.GetRootGameObjects();
+            for (int i = 0; i < roots.Length; i++)
+            {
+                var root = roots[i];
+                if (root == null)
+                    continue;
+
+                // Destroy only app scripts from Assembly-CSharp.
+                // Avoid touching engine/plugin internals that can crash WebGL when force-destroyed.
+                var behaviours = root.GetComponentsInChildren<MonoBehaviour>(true);
+                bool hasProjectScript = false;
+                for (int b = 0; b < behaviours.Length; b++)
+                {
+                    var mb = behaviours[b];
+                    if (mb == null)
+                        continue;
+
+                    var asm = mb.GetType().Assembly.GetName().Name;
+                    if (asm == "Assembly-CSharp")
+                    {
+                        hasProjectScript = true;
+                        break;
+                    }
+                }
+
+                if (hasProjectScript)
+                    Destroy(root);
+            }
         }
 
         private static Scene GetDontDestroyOnLoadScene()

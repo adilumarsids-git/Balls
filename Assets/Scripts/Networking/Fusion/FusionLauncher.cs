@@ -8,6 +8,9 @@ using UnityEngine.SceneManagement;
 
 namespace Project.Networking.Fusion
 {
+    [RequireComponent(typeof(NetworkRunner))]
+    [RequireComponent(typeof(PlayerSpawner))]
+    [RequireComponent(typeof(FusionInputProvider))]
     public class FusionLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         [Header("Defaults")]
@@ -25,6 +28,20 @@ namespace Project.Networking.Fusion
         private bool isReturningToMenu;
 
         public event Action<IReadOnlyList<SessionInfo>> SessionListChanged;
+
+        public static FusionLauncher GetOrCreate()
+        {
+            var existing = FindObjectOfType<FusionLauncher>();
+            if (existing != null)
+                return existing;
+
+            var go = new GameObject("FusionLauncher");
+            go.AddComponent<NetworkRunner>();
+            go.AddComponent<PlayerSpawner>();
+            go.AddComponent<FusionInputProvider>();
+            return go.AddComponent<FusionLauncher>();
+        }
+
 
         private void Awake()
         {

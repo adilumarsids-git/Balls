@@ -5,10 +5,12 @@ namespace Project.Networking.Fusion
 {
     public class PlayerSpawner : MonoBehaviour
     {
-        private const string DefaultPlayerBallGuid = "84678b33a96ec014099754767f666947";
-
         [Header("Network Prefab")]
-        [SerializeField] private NetworkPrefabRef playerPrefab;
+        [Tooltip("Optional direct reference. If empty, we load from Resources path below.")]
+        [SerializeField] private NetworkObject playerPrefab;
+
+        [Tooltip("Resources path for player prefab (without .prefab).")]
+        [SerializeField] private string playerPrefabResourcesPath = "PlayerBall";
 
         private NetworkRunner runner;
         private Transform[] spawnPoints;
@@ -23,26 +25,28 @@ namespace Project.Networking.Fusion
         public void Init(NetworkRunner r)
         {
             runner = r;
-            EnsureDefaultPlayerPrefabAssigned();
+            EnsurePlayerPrefabLoaded();
         }
 
-        public void EnsureDefaultPlayerPrefabAssigned()
+        public void EnsurePlayerPrefabLoaded()
         {
-            if (playerPrefab.IsValid)
+            if (playerPrefab != null)
                 return;
 
-            // Runtime fallback for auto-created launcher path (no scene-serialized spawner values).
-            // Use Unity serialization overwrite on THIS component so private [SerializeField] layout is respected.
-            var json = $"{{\"playerPrefab\":{\"RawGuidValue\":\"{DefaultPlayerBallGuid}\"}}";
-            JsonUtility.FromJsonOverwrite(json, this);
+            // Primary path requested: load PlayerBall from Resources.
+            playerPrefab = Resources.Load<NetworkObject>(playerPrefabResourcesPath);
 
-            if (!playerPrefab.IsValid)
+            // Secondary fallback if kept in subfolder like Resources/Networked/PlayerBall.prefab
+            if (playerPrefab == null)
+                playerPrefab = Resources.Load<NetworkObject>("Networked/PlayerBall");
+
+            if (playerPrefab == null)
             {
-                Debug.LogError("[PlayerSpawner] Failed to assign default PlayerBall prefab reference.");
+                Debug.LogError($"[PlayerSpawner] Could not load player prefab from Resources. Tried '{playerPrefabResourcesPath}' and 'Networked/PlayerBall'.");
                 return;
             }
 
-            Debug.Log("[PlayerSpawner] Assigned default PlayerBall prefab reference at runtime.");
+            Debug.Log("[PlayerSpawner] Loaded PlayerBall prefab from Resources.");
         }
 
         public void RefreshSpawnPoints()
@@ -71,11 +75,11 @@ namespace Project.Networking.Fusion
 
         public void SpawnPlayerFor(PlayerRef player)
         {
-            EnsureDefaultPlayerPrefabAssigned();
+            EnsurePlayerPrefabLoaded();
 
-            if (!playerPrefab.IsValid)
+            if (playerPrefab == null)
             {
-                Debug.LogError("[PlayerSpawner] playerPrefab is still invalid. Cannot spawn player.");
+                Debug.LogError("[PlayerSpawner] playerPrefab is null. Cannot spawn player.");
                 return;
             }
 
@@ -114,7 +118,6 @@ namespace Project.Networking.Fusion
             {
                 // StateAuthority for local player is local in Shared Mode (since we spawned it)
                 ctrl.SetPlayerName(Project.Core.LocalProfile.GetName());
-
             }
 
             // Optional: register with match manager (fine for now)
@@ -124,6 +127,7 @@ namespace Project.Networking.Fusion
 
             Debug.Log($"[Spawner] Local={runner.LocalPlayer} spawned for={player} obj.InputAuthority={obj.InputAuthority}");
         }
+
         private Quaternion GetSpawnRotationFacingCenter(Vector3 spawnPosition)
         {
             if (mapCenter == null && !string.IsNullOrWhiteSpace(mapCenterName))
@@ -142,6 +146,5 @@ namespace Project.Networking.Fusion
 
             return Quaternion.LookRotation(toCenter.normalized, Vector3.up);
         }
-
     }
 }

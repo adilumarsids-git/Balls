@@ -39,7 +39,7 @@ namespace Project.Networking.Fusion
             var launcher = go.AddComponent<FusionLauncher>();
             var spawner = go.GetComponent<PlayerSpawner>();
             if (spawner != null)
-                spawner.EnsureDefaultPlayerPrefabAssigned();
+                spawner.EnsurePlayerPrefabLoaded();
             return launcher;
         }
 
@@ -52,7 +52,7 @@ namespace Project.Networking.Fusion
             ApplyLatencyTuning();
             runner = GetComponent<NetworkRunner>();
             spawner = GetComponent<PlayerSpawner>();
-            spawner?.EnsureDefaultPlayerPrefabAssigned();
+            spawner?.EnsurePlayerPrefabLoaded();
 
             runner.ProvideInput = true;
 

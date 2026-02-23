@@ -34,8 +34,11 @@
         "PlayerCount": 10,
         "TickRateSelection": {
             "Client": 60,
-            "ServerIndex": 0,
+            "ClientSendInterval": 1,
+            "ServerTickInterval": 1,
+            "ServerSendInterval": 1,
             "ClientSendIndex": 1,
+            "ServerIndex": 1,
             "ServerSendIndex": 1
         }
     },

@@ -490,6 +490,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: WaterBlock_50m
       objectReference: {fileID: 0}
+    - target: {fileID: 1507636620937791836, guid: 7097ba7ba649e1f41bba232312bdcbd8, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -601,7 +605,7 @@ Transform:
   m_GameObject: {fileID: 484630124}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.2999878, y: -38.5, z: 0}
+  m_LocalPosition: {x: -0.2999878, y: -8.5, z: 0}
   m_LocalScale: {x: 140.23036, y: 140.23036, z: 140.23036}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1142,6 +1146,10 @@ PrefabInstance:
     - target: {fileID: 3615299149272416980, guid: fa9b3057ee026bb41a40d9f7eabfef7c, type: 3}
       propertyPath: m_Name
       value: Cliff 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 3615299149272416980, guid: fa9b3057ee026bb41a40d9f7eabfef7c, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -2729,6 +2737,7 @@ GameObject:
   - component: {fileID: 2071398472}
   - component: {fileID: 2071398471}
   - component: {fileID: 2071398470}
+  - component: {fileID: 2071398473}
   m_Layer: 0
   m_Name: NetworkGameFlowManager
   m_TagString: Untagged
@@ -2780,6 +2789,7 @@ MonoBehaviour:
   NestedObjects: []
   NetworkedBehaviours:
   - {fileID: 2071398470}
+  - {fileID: 2071398473}
   ForceRemoteRenderTimeframe: 0
 --- !u!4 &2071398472
 Transform:
@@ -2796,6 +2806,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2071398473
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2071398469}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ee4fcdbb8ce5f484b89b04e435a0f8ee, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::GameRestartManager
+  bootstrapSceneIndex: 0
+  delaySeconds: 0.5
 --- !u!1 &2112020499
 GameObject:
   m_ObjectHideFlags: 0

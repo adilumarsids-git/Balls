@@ -28,8 +28,8 @@ namespace Project.Networking.Fusion
         [SerializeField] private float countdownSeconds = 3f;
 
         [Header("End Game")]
-        [SerializeField] private float backToMenuDelay = 5f;
-        [SerializeField] private int menuSceneBuildIndex = 2; // 02_Menu
+        [SerializeField] private float backToMenuDelay = 1f;
+        [SerializeField] private int menuSceneBuildIndex = 0; // 02_Menu
 
         [Networked] public MatchFlowState State { get; private set; }
         [Networked] public int CurrentPlayers { get; private set; }
@@ -45,7 +45,7 @@ namespace Project.Networking.Fusion
         [SerializeField] private float consumableRespawnSeconds = 3f;
         private NetworkConsumable activeConsumable;
         [Networked] private TickTimer ConsumableSpawnTimer { get; set; }
-
+        private bool _restartQueued;
         public override void Spawned()
         {
             Instance = this;
@@ -83,14 +83,9 @@ namespace Project.Networking.Fusion
             // Always refresh player count while not shutdown
             CurrentPlayers = CountPlayers();
 
-            // Game over: wait then send everyone back to menu
             if (State == MatchFlowState.GameOver)
             {
-                if (BackToMenuTimer.IsRunning && BackToMenuTimer.Expired(Runner))
-                {
-                    BackToMenuTimer = default;
-                    RPC_BackToMenu(menuSceneBuildIndex);
-                }
+                // We restart after leaderboard submission now.
                 return;
             }
 
@@ -201,9 +196,11 @@ namespace Project.Networking.Fusion
 
                 State = MatchFlowState.GameOver;
 
+                // This is for UI/logs (all clients)
                 RPC_AnnounceWinner(winnerObj, WinnerName);
 
-                BackToMenuTimer = TickTimer.CreateFromSeconds(Runner, backToMenuDelay);
+                // Submit leaderboard then restart everyone
+                StartCoroutine(SubmitLeaderboardThenRestart(winnerObj, WinnerName));
             }
 
         }
@@ -314,46 +311,64 @@ namespace Project.Networking.Fusion
         private void RPC_AnnounceWinner(NetworkObject winnerObj, NetworkString<_32> winnerName)
         {
             Debug.Log($"Winner: {winnerName}");
+            // Full restart for everyone after result is announced.
 
             // Only Shared master/state authority should submit to leaderboard
-            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority)
-                return;
+           
+        }
 
+        private System.Collections.IEnumerator SubmitLeaderboardThenRestart(NetworkObject winnerObj, NetworkString<_32> winnerName)
+        {
+            // Only Shared master/state authority should run this
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority)
+                yield break;
+
+            // Protect against double calls
+            if (_restartQueued)
+                yield break;
+
+            _restartQueued = true;
+
+            // --- Submit leaderboard (same logic you already use) ---
             if (winnerObj == null)
             {
                 Debug.LogWarning("[Flow] WinnerObj is null, cannot submit leaderboard.");
-                return;
             }
-
-            var appearance = winnerObj.GetComponent<NetworkPlayerAppearance>();
-            if (appearance == null)
+            else
             {
-                Debug.LogWarning("[Flow] Winner has no NetworkPlayerAppearance, cannot submit leaderboard.");
-                return;
+                var appearance = winnerObj.GetComponent<NetworkPlayerAppearance>();
+                if (appearance == null)
+                {
+                    Debug.LogWarning("[Flow] Winner has no NetworkPlayerAppearance, cannot submit leaderboard.");
+                }
+                else
+                {
+                    var nftKey = appearance.GetLeaderboardNftKey();
+                    if (string.IsNullOrWhiteSpace(nftKey))
+                    {
+                        Debug.LogWarning("[Flow] Winner nftKey is empty, cannot submit leaderboard.");
+                    }
+                    else
+                    {
+                        string displayName = winnerName.ToString();
+
+                        var task = SubmitWinnerAsync(nftKey, displayName);
+                        while (!task.IsCompleted) yield return null;
+
+                        // If it failed, your SubmitWinnerAsync already logs warning.
+                    }
+                }
             }
 
-            var nftKey = appearance.GetLeaderboardNftKey();
-            if (string.IsNullOrWhiteSpace(nftKey))
+            // --- Now restart ALL clients fresh to scene 0 ---
+            var restarter = GetComponent<FusionFullRestart>();
+            if (restarter == null)
             {
-                Debug.LogWarning("[Flow] Winner nftKey is empty, cannot submit leaderboard.");
-                return;
+                Debug.LogError("[Flow] FusionFullRestart component missing on NetworkGameFlowManager!");
+                yield break;
             }
 
-            string displayName = appearance.GetLeaderboardNftDisplayName();
-
-            _ = SubmitWinnerAsync(nftKey, displayName);
-        }
-
-
-        [Rpc(RpcSources.All, RpcTargets.All)]
-        private void RPC_BackToMenu(int menuBuildIndex)
-        {
-            // Cleanly exit the session on each client
-            var r = NetworkRunner.GetRunnerForGameObject(gameObject);
-            if (r != null)
-                _ = r.Shutdown();
-
-            SceneManager.LoadScene(menuBuildIndex);
+            restarter.RequestRestartAll();
         }
 
         [Rpc(RpcSources.All, RpcTargets.All)]

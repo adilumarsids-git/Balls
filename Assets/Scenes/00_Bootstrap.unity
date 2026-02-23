@@ -468,6 +468,8 @@ MonoBehaviour:
   gameplaySceneBuildIndex: 4
   lobby: 2
   menuSceneBuildIndex: 2
+  optimizeLocalLatency: 1
+  targetFrameRate: 120
 --- !u!114 &1781283080
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -523,6 +525,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Project.Networking.Fusion.PlayerSpawner
   playerPrefab:
     RawGuidValue: 84678b33a96ec014099754767f666947
+  mapCenter: {fileID: 0}
+  mapCenterName: CenterPoint
 --- !u!114 &1781283084
 MonoBehaviour:
   m_ObjectHideFlags: 0

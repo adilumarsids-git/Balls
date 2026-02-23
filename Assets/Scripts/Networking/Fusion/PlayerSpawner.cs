@@ -6,11 +6,7 @@ namespace Project.Networking.Fusion
     public class PlayerSpawner : MonoBehaviour
     {
         [Header("Network Prefab")]
-        [Tooltip("Optional direct reference. If empty, we load from Resources path below.")]
-        [SerializeField] private GameObject playerPrefab;
-
-        [Tooltip("Resources path for player prefab (without .prefab).")]
-        [SerializeField] private string playerPrefabResourcesPath = "PlayerBall";
+        [SerializeField] private NetworkPrefabRef playerPrefab;
 
         private NetworkRunner runner;
         private Transform[] spawnPoints;
@@ -22,37 +18,7 @@ namespace Project.Networking.Fusion
         // Keep track so we don't spawn twice for local player
         private NetworkObject localPlayerObject;
 
-        public void Init(NetworkRunner r)
-        {
-            runner = r;
-            EnsurePlayerPrefabLoaded();
-        }
-
-        public void EnsurePlayerPrefabLoaded()
-        {
-            if (playerPrefab != null)
-                return;
-
-            // Primary path requested: load PlayerBall from Resources.
-            // IMPORTANT: load the prefab GameObject, then grab NetworkObject component.
-            // Loading NetworkObject sub-assets directly can resolve to subobject names (e.g. "PlayerBall 1") and fail in runtime spawning.
-            var prefabGo = Resources.Load<GameObject>(playerPrefabResourcesPath);
-
-            // Secondary fallback if kept in subfolder like Resources/Networked/PlayerBall.prefab
-            if (prefabGo == null)
-                prefabGo = Resources.Load<GameObject>("Networked/PlayerBall");
-
-            if (prefabGo != null)
-                playerPrefab = prefabGo;
-
-            if (playerPrefab == null)
-            {
-                Debug.LogError($"[PlayerSpawner] Could not load player prefab GameObject from Resources. Tried '{playerPrefabResourcesPath}' and 'Networked/PlayerBall'.");
-                return;
-            }
-
-            Debug.Log("[PlayerSpawner] Loaded PlayerBall GameObject from Resources.");
-        }
+        public void Init(NetworkRunner r) => runner = r;
 
         public void RefreshSpawnPoints()
         {
@@ -80,21 +46,6 @@ namespace Project.Networking.Fusion
 
         public void SpawnPlayerFor(PlayerRef player)
         {
-            EnsurePlayerPrefabLoaded();
-
-            if (playerPrefab == null)
-            {
-                Debug.LogError("[PlayerSpawner] playerPrefab GameObject is null. Cannot spawn player.");
-                return;
-            }
-
-            var prefabNetObj = playerPrefab.GetComponent<NetworkObject>();
-            if (prefabNetObj == null)
-            {
-                Debug.LogError("[PlayerSpawner] playerPrefab is missing NetworkObject component.");
-                return;
-            }
-
             if (runner == null)
             {
                 Debug.LogError("Spawner missing runner.");
@@ -120,7 +71,7 @@ namespace Project.Networking.Fusion
             Transform t = spawnPoints[index];
 
             Quaternion spawnRotation = GetSpawnRotationFacingCenter(t.position);
-            var obj = runner.Spawn(prefabNetObj, t.position, spawnRotation, player);
+            var obj = runner.Spawn(playerPrefab, t.position, spawnRotation, player);
 
             if (player == runner.LocalPlayer)
                 localPlayerObject = obj;
@@ -130,6 +81,7 @@ namespace Project.Networking.Fusion
             {
                 // StateAuthority for local player is local in Shared Mode (since we spawned it)
                 ctrl.SetPlayerName(Project.Core.LocalProfile.GetName());
+
             }
 
             // Optional: register with match manager (fine for now)
@@ -139,7 +91,6 @@ namespace Project.Networking.Fusion
 
             Debug.Log($"[Spawner] Local={runner.LocalPlayer} spawned for={player} obj.InputAuthority={obj.InputAuthority}");
         }
-
         private Quaternion GetSpawnRotationFacingCenter(Vector3 spawnPosition)
         {
             if (mapCenter == null && !string.IsNullOrWhiteSpace(mapCenterName))
@@ -158,5 +109,6 @@ namespace Project.Networking.Fusion
 
             return Quaternion.LookRotation(toCenter.normalized, Vector3.up);
         }
+
     }
 }

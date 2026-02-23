@@ -8,9 +8,6 @@ using UnityEngine.SceneManagement;
 
 namespace Project.Networking.Fusion
 {
-    [RequireComponent(typeof(NetworkRunner))]
-    [RequireComponent(typeof(PlayerSpawner))]
-    [RequireComponent(typeof(FusionInputProvider))]
     public class FusionLauncher : MonoBehaviour, INetworkRunnerCallbacks
     {
         [Header("Defaults")]
@@ -25,32 +22,18 @@ namespace Project.Networking.Fusion
 
         private NetworkRunner runner;
         private PlayerSpawner spawner;
+        private bool isReturningToMenu;
 
         public event Action<IReadOnlyList<SessionInfo>> SessionListChanged;
-
-        public static FusionLauncher GetOrCreate()
-        {
-            var existing = FindObjectOfType<FusionLauncher>();
-            if (existing != null)
-                return existing;
-
-            var go = new GameObject("FusionLauncher");
-            var launcher = go.AddComponent<FusionLauncher>();
-            var spawner = go.GetComponent<PlayerSpawner>();
-            if (spawner != null)
-                spawner.EnsurePlayerPrefabLoaded();
-            return launcher;
-        }
-
 
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
 
+            isReturningToMenu = false;
             ApplyLatencyTuning();
             runner = GetComponent<NetworkRunner>();
             spawner = GetComponent<PlayerSpawner>();
-            spawner?.EnsurePlayerPrefabLoaded();
 
             runner.ProvideInput = true;
 
@@ -78,11 +61,13 @@ namespace Project.Networking.Fusion
 
         public async Task JoinPublicLobby()
         {
+            isReturningToMenu = false;
             await runner.JoinSessionLobby(lobby);
         }
 
         public async Task Host(string roomName, int mapBuildIndex, int maxPlayers = 4)
         {
+            isReturningToMenu = false;
             var sceneManager = GetSceneManager();
 
             var sceneInfo = new NetworkSceneInfo();
@@ -112,6 +97,7 @@ namespace Project.Networking.Fusion
 
         public async Task Join(string roomName)
         {
+            isReturningToMenu = false;
             var sceneManager = GetSceneManager();
 
             var args = new StartGameArgs
@@ -155,11 +141,28 @@ namespace Project.Networking.Fusion
 
         private void ReturnToMenu()
         {
-            var scene = SceneManager.GetActiveScene();
-            if (scene.buildIndex == menuSceneBuildIndex)
+            if (isReturningToMenu)
                 return;
 
-            SceneManager.LoadScene(menuSceneBuildIndex);
+            isReturningToMenu = true;
+
+            var scene = SceneManager.GetActiveScene();
+            if (scene.buildIndex != menuSceneBuildIndex)
+                SceneManager.LoadScene(menuSceneBuildIndex);
+        }
+
+        public void ShutdownAndReturnToMenu()
+        {
+            if (isReturningToMenu)
+                return;
+
+            if (runner != null && runner.IsRunning)
+            {
+                _ = runner.Shutdown();
+                return;
+            }
+
+            ReturnToMenu();
         }
 
         // ===== Unused callbacks (kept empty) =====

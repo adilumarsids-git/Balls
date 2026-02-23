@@ -51,7 +51,7 @@ Material:
     - _SpecularHighlights: 1
     m_Colors:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-    - _HighColor: {r: 0.36470592, g: 1, b: 0.9255286, a: 0}
+    - _HighColor: {r: 0.5259594, g: 0.6437679, b: 0.6528301, a: 0}
     - _JiColor1: {r: 0.4811321, g: 0.34246728, b: 0.3290762, a: 0}
     - _LowColor: {r: 0, g: 0.04240509, b: 1, a: 0}
     - _LowColor1: {r: 0.0990569, g: 0.4716981, b: 0, a: 0}

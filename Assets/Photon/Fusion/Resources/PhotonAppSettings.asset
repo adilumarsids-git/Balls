@@ -18,9 +18,9 @@ MonoBehaviour:
     AppIdQuantum: 
     AppIdChat: 
     AppIdVoice: 
-    AppVersion: FusionForecastPhysicsDemos2
+    AppVersion: ad
     UseNameServer: 1
-    FixedRegion: ""
+    FixedRegion: 
     Server: 
     Port: 0
     ProxyServer: 

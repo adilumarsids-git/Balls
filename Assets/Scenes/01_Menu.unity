@@ -638,8 +638,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   walletSceneBuildIndex: 1
-  redirectIfDisconnected: 1
-  enableDebugLogs: 1
+  redirectIfDisconnected: 0
+  enableDebugLogs: 0
   nftDropdown: {fileID: 2065138096}
   statusText: {fileID: 1382370551}
   nftGatePanel: {fileID: 247208281}

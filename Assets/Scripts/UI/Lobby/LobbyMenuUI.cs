@@ -36,14 +36,13 @@ namespace Project.UI.Lobby
 
         private void Awake()
         {
-            launcher = FusionLauncher.GetOrCreate();
+            launcher = FindObjectOfType<FusionLauncher>();
 
             if (launcher == null)
             {
-                Debug.LogError("FusionLauncher could not be created.");
+                Debug.LogError("FusionLauncher not found! Is NetworkBootstrap in Bootstrap scene?");
                 return;
             }
-
             refreshButton.onClick.AddListener(() => _ = Refresh());
             hostButton.onClick.AddListener(() => _ = Host());
             joinButton.onClick.AddListener(() => _ = JoinByName());
@@ -51,12 +50,6 @@ namespace Project.UI.Lobby
 
         private async void OnEnable()
         {
-            if (launcher == null)
-                launcher = FusionLauncher.GetOrCreate();
-
-            if (launcher == null)
-                return;
-
             nameInput.text = Project.Core.LocalProfile.GetName();
             launcher.SessionListChanged += OnSessionListChanged;
             await Refresh();
@@ -64,8 +57,7 @@ namespace Project.UI.Lobby
 
         private void OnDisable()
         {
-            if (launcher != null)
-                launcher.SessionListChanged -= OnSessionListChanged;
+            launcher.SessionListChanged -= OnSessionListChanged;
         }
 
         private async Task Refresh()

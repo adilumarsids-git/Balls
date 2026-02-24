@@ -91,7 +91,7 @@ public class FusionFullRestart : NetworkBehaviour
 
         private static IEnumerator ShutdownAllRunners()
         {
-            var runners = Object.FindObjectsOfType<NetworkRunner>(true);
+            var runners = UnityEngine.Object.FindObjectsOfType<NetworkRunner>(true);
 
             foreach (var r in runners)
             {
@@ -103,7 +103,7 @@ public class FusionFullRestart : NetworkBehaviour
             while (timeout > 0f)
             {
                 bool anyRunning = false;
-                var stillThere = Object.FindObjectsOfType<NetworkRunner>(true);
+                var stillThere = UnityEngine.Object.FindObjectsOfType<NetworkRunner>(true);
                 foreach (var r in stillThere)
                 {
                     if (r != null && r.IsRunning)
@@ -128,7 +128,7 @@ public class FusionFullRestart : NetworkBehaviour
 
             var roots = ddolScene.GetRootGameObjects();
             for (int i = 0; i < roots.Length; i++)
-                Object.Destroy(roots[i]);
+                UnityEngine.Object.Destroy(roots[i]);
         }
     }
 }

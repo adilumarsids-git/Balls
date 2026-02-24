@@ -14,6 +14,7 @@ namespace Project.Wallet
             public string id;
             public string displayName;
             public Color color = Color.white;
+            public Mesh mesh;
             public string[] nftKeywords;
         }
 

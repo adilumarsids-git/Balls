@@ -9,6 +9,7 @@ namespace Project.Networking.Fusion
     {
         [SerializeField] private BallColorCatalogSO colorCatalog;
         [SerializeField] private Renderer targetRenderer;
+        [SerializeField] private MeshFilter targetMeshFilter;
 
         [Networked]
         private NetworkString<_64> SelectedNftId { get; set; }
@@ -22,6 +23,9 @@ namespace Project.Networking.Fusion
         {
             if (targetRenderer == null)
                 targetRenderer = GetComponentInChildren<Renderer>();
+
+            if (targetMeshFilter == null)
+                targetMeshFilter = GetComponentInChildren<MeshFilter>();
 
             if (Object.HasStateAuthority)
             {
@@ -54,6 +58,9 @@ namespace Project.Networking.Fusion
 
             if (targetRenderer.material != null)
                 targetRenderer.material.color = entry.color;
+
+            if (targetMeshFilter != null && entry.mesh != null)
+                targetMeshFilter.sharedMesh = entry.mesh;
 
             lastAppliedNftId = skinId;
         }

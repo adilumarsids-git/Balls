@@ -35,7 +35,20 @@ namespace Project.Networking.Fusion
 
         public void RegisterPlayer(NetworkObject player)
         {
-            if (!Object.HasStateAuthority) return;
+            if (Object.HasStateAuthority)
+            {
+                players.Add(player);
+                AliveCount++;
+                return;
+            }
+
+            RPC_RegisterPlayer(player);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_RegisterPlayer(NetworkObject player, RpcInfo info = default)
+        {
+            if (players.Contains(player)) return;
 
             players.Add(player);
             AliveCount++;
@@ -43,16 +56,30 @@ namespace Project.Networking.Fusion
 
         public void PlayerEliminated(NetworkObject player)
         {
-            if (!Object.HasStateAuthority) return;
+            if (Object.HasStateAuthority)
+            {
+                if (!players.Contains(player)) return;
 
+                AliveCount--;
+
+                if (AliveCount <= 1)
+                    EndRound();
+
+                return;
+            }
+
+            RPC_PlayerEliminated(player);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_PlayerEliminated(NetworkObject player, RpcInfo info = default)
+        {
             if (!players.Contains(player)) return;
 
             AliveCount--;
 
             if (AliveCount <= 1)
-            {
                 EndRound();
-            }
         }
 
         private void EndRound()
@@ -82,22 +109,29 @@ namespace Project.Networking.Fusion
         {
             if (!Object.HasStateAuthority) return;
 
-            foreach (var p in players)
-            {
-                if (p != null)
-                    Runner.Despawn(p);
-            }
-
+            // Reset match state (authority side)
             players.Clear();
             AliveCount = 0;
 
-            // Respawn players
-            foreach (var player in Runner.ActivePlayers)
-            {
-                FindObjectOfType<PlayerSpawner>()
-                    .SpawnPlayerFor(player);
-            }
+            // Tell everyone to respawn locally (Shared-correct)
+            RPC_RequestLocalRespawn();
         }
+
+        [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
+        private void RPC_RequestLocalRespawn(RpcInfo info = default)
+        {
+            var spawner = FindObjectOfType<PlayerSpawner>();
+            if (spawner == null)
+            {
+                Debug.LogError("[MatchManager] PlayerSpawner not found for respawn.");
+                return;
+            }
+
+            spawner.RefreshSpawnPoints();
+            spawner.DespawnLocalPlayer();
+            spawner.EnsureLocalPlayerSpawned();
+        }
+
         public override void FixedUpdateNetwork()
         {
             if (!Object.HasStateAuthority) return;

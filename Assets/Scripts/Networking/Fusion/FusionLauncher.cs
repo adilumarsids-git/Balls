@@ -141,6 +141,9 @@ namespace Project.Networking.Fusion
 
         private void ReturnToMenu()
         {
+            if (FusionFullRestart.IsRestarting)
+                return;
+
             if (isReturningToMenu)
                 return;
 
@@ -176,6 +179,9 @@ namespace Project.Networking.Fusion
 
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)
         {
+            if (FusionFullRestart.IsRestarting)
+                return;
+
             ReturnToMenu();
         }
 
@@ -184,11 +190,17 @@ namespace Project.Networking.Fusion
         // Some Fusion versions have this overload, some only have the reason version.
         public void OnDisconnectedFromServer(NetworkRunner runner)
         {
+            if (FusionFullRestart.IsRestarting)
+                return;
+
             ReturnToMenu();
         }
 
         public void OnDisconnectedFromServer(NetworkRunner runner, NetDisconnectReason reason)
         {
+            if (FusionFullRestart.IsRestarting)
+                return;
+
             ReturnToMenu();
         }
 

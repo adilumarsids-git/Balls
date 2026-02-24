@@ -5,6 +5,13 @@ using UnityEngine.SceneManagement;
 
 public class FusionFullRestart : NetworkBehaviour
 {
+    public static bool IsRestarting { get; private set; }
+
+    public static void ClearRestartFlag()
+    {
+        IsRestarting = false;
+    }
+
     [Header("Restart Target")]
     [Tooltip("Bootstrap scene build index (you said Scene 0).")]
     public int bootstrapSceneIndex = 0;
@@ -29,6 +36,12 @@ public class FusionFullRestart : NetworkBehaviour
         }
 
         _restartStarted = true;
+        IsRestarting = true;
+
+        // Start local restart immediately (host/state authority)
+        StartCoroutine(RestartRoutine(bootstrapSceneIndex, delaySeconds));
+
+        // Tell all peers to do the same.
         RPC_RestartAllClients(bootstrapSceneIndex, delaySeconds);
     }
 
@@ -40,6 +53,7 @@ public class FusionFullRestart : NetworkBehaviour
     {
         if (_restartStarted) return;
         _restartStarted = true;
+        IsRestarting = true;
         StartCoroutine(RestartRoutine(sceneIndex, delay));
     }
 
@@ -55,7 +69,8 @@ public class FusionFullRestart : NetworkBehaviour
         // 2) Destroy everything in DontDestroyOnLoad (true cold restart)
         DestroyAllDontDestroyOnLoadObjects();
 
-        // 3) Load bootstrap scene fresh
+        // 3) Reset bootstrap static state + load bootstrap scene fresh
+        Project.Core.Bootstrap.ProjectBootstrap.ResetBootStateForRestart();
         SceneManager.LoadScene(sceneIndex, LoadSceneMode.Single);
     }
 

@@ -18,9 +18,11 @@ namespace Project.Networking.Fusion
         private NetworkString<_64> SelectedNftMint { get; set; }
 
         private string lastAppliedNftId;
+        private bool _isNetworkSpawned;
 
         public override void Spawned()
         {
+            _isNetworkSpawned = true;
             if (targetRenderer == null)
                 targetRenderer = GetComponentInChildren<Renderer>();
 
@@ -37,6 +39,11 @@ namespace Project.Networking.Fusion
             }
 
             ApplyAppearance(SelectedNftId.ToString());
+        }
+
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            _isNetworkSpawned = false;
         }
 
         private void ApplyAppearance(string skinId)
@@ -68,16 +75,23 @@ namespace Project.Networking.Fusion
 
         public string GetLeaderboardNftKey()
         {
-            var mint = SelectedNftMint.ToString();
-            if (!string.IsNullOrWhiteSpace(mint))
+            string mint;
+            if (TryGetSelectedNftMint(out mint) && !string.IsNullOrWhiteSpace(mint))
                 return mint;
 
-            return SelectedNftId.ToString();
+            string id;
+            if (TryGetSelectedNftId(out id) && !string.IsNullOrWhiteSpace(id))
+                return id;
+
+            return !string.IsNullOrWhiteSpace(lastAppliedNftId) ? lastAppliedNftId : string.Empty;
         }
 
         public override void Render()
         {
-            var currentId = SelectedNftId.ToString();
+            string currentId;
+            if (!TryGetSelectedNftId(out currentId))
+                return;
+
             if (!string.Equals(lastAppliedNftId, currentId, System.StringComparison.Ordinal))
                 ApplyAppearance(currentId);
         }
@@ -85,7 +99,9 @@ namespace Project.Networking.Fusion
         public string GetLeaderboardNftDisplayName()
         {
             // Use the catalog "Display Name" for the selected SkinId
-            var id = SelectedNftId.ToString();
+            string id;
+            if (!TryGetSelectedNftId(out id) || string.IsNullOrWhiteSpace(id))
+                id = lastAppliedNftId;
 
             if (colorCatalog != null && !string.IsNullOrWhiteSpace(id))
             {
@@ -99,6 +115,26 @@ namespace Project.Networking.Fusion
 
             // Fallbacks
             return !string.IsNullOrWhiteSpace(id) ? id : "Unknown NFT";
+        }
+
+        public bool TryGetSelectedNftId(out string id)
+        {
+            id = null;
+            if (!_isNetworkSpawned || Object == null)
+                return false;
+
+            id = SelectedNftId.ToString();
+            return true;
+        }
+
+        public bool TryGetSelectedNftMint(out string mint)
+        {
+            mint = null;
+            if (!_isNetworkSpawned || Object == null)
+                return false;
+
+            mint = SelectedNftMint.ToString();
+            return true;
         }
 
 

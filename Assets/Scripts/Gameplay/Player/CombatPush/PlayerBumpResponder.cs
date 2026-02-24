@@ -49,8 +49,8 @@ namespace Project.Gameplay.Player.CombatPush
             away.Normalize();
 
             Vector2 collisionAxis = new Vector2(away.x, away.y);
-            Vector2 myVelocity = new Vector2(rb.velocity.x, rb.velocity.y);
-            Vector2 otherVelocity = new Vector2(otherBody.velocity.x, otherBody.velocity.y);
+            Vector2 myVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y);
+            Vector2 otherVelocity = new Vector2(otherBody.linearVelocity.x, otherBody.linearVelocity.y);
 
             float myAxisSpeed = Vector2.Dot(myVelocity, collisionAxis);
             float otherAxisSpeed = Vector2.Dot(otherVelocity, collisionAxis);

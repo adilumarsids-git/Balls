@@ -16,15 +16,30 @@ MonoBehaviour:
   - id: GreenBall
     displayName: GreenBall
     color: {r: 0.1, g: 0.85, b: 0.2, a: 1}
+    mesh: {fileID: 0}
     nftKeywords:
     - GreenBall
   - id: BlueBall
     displayName: BlueBall
     color: {r: 0.2, g: 0.45, b: 1, a: 1}
+    mesh: {fileID: 0}
     nftKeywords:
     - BlueBall
   - id: RedBall
     displayName: RedBall
     color: {r: 1, g: 0.2, b: 0.2, a: 1}
+    mesh: {fileID: 0}
     nftKeywords:
     - RedBall
+  - id: YellowBall
+    displayName: YellowBall
+    color: {r: 0.9622642, g: 0.7741124, b: 0.05628333, a: 1}
+    mesh: {fileID: 0}
+    nftKeywords:
+    - YellowBall
+  - id: GolfBall
+    displayName: GolfBall
+    color: {r: 1, g: 1, b: 1, a: 1}
+    mesh: {fileID: 0}
+    nftKeywords:
+    - GolfBall

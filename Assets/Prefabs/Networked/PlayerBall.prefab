@@ -142,11 +142,11 @@ Rigidbody:
     m_Bits: 0
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
-  m_UseGravity: 1
+  m_UseGravity: 0
   m_IsKinematic: 0
-  m_Interpolate: 1
+  m_Interpolate: 0
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 2
 --- !u!114 &8171928688411899340
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -227,6 +227,11 @@ MonoBehaviour:
   highSpeedTurnReduction: 0.65
   rollingResistance: 0.1
   sidewaysGripMultiplier: 0.75
+  bumpStrength: 4.5
+  bumpSpeedFactor: 0.65
+  minBumpImpulse: 1.25
+  maxBumpImpulse: 10
+  bumpCooldownSeconds: 0.08
   _PlayerName:
     _length: 0
     _data:
@@ -245,6 +250,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   colorCatalog: {fileID: 11400000, guid: 6e7d28e0c8a34a84a8c0f2a8c63a88b5, type: 2}
   targetRenderer: {fileID: 1668854386354945037}
+  targetMeshFilter: {fileID: 4547913733529349706}
 --- !u!114 &3266080698283577001
 MonoBehaviour:
   m_ObjectHideFlags: 0

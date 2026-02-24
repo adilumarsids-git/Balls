@@ -5,15 +5,6 @@ using Project.Gameplay.Player.Stats;
 
 namespace Project.Networking.Fusion
 {
-    /// Forecast-Physics controller (Shared mode):
-    /// - Uses NetworkTransform with Forecast Physics Enabled (NO NetworkRigidbody).
-    /// - StateAuthority reads Fusion input in FixedUpdateNetwork() and writes to Networked fields.
-    /// - ALL clients simulate Rigidbody physics in Unity FixedUpdate() using those Networked fields.
-    ///
-    /// Ball Feel:
-    /// - No brakes (no stop damping)
-    /// - Inertial steering (direction changes take time, especially at speed)
-    /// - Optional small rolling resistance so it doesn't roll forever
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(NetworkTransform))]
     public class NetworkPlayerController : NetworkBehaviour
@@ -23,32 +14,33 @@ namespace Project.Networking.Fusion
         [SerializeField] private GameConfigSO gameConfig;
 
         [Header("Ball Feel Tweaks")]
-        [Tooltip("How quickly the ball responds to steering. Lower = more slippery/drifty.")]
         [Range(0.1f, 2.0f)]
         [SerializeField] private float steeringResponsiveness = 0.55f;
 
-        [Tooltip("Extra slowdown when trying to reverse direction (right -> left, forward -> back). Lower = harder to reverse.")]
         [Range(0.1f, 1.0f)]
         [SerializeField] private float reverseResponsiveness = 0.35f;
 
-        [Tooltip("At high speed, turning becomes harder. 0 = no effect, 1 = strong effect.")]
         [Range(0f, 1f)]
         [SerializeField] private float highSpeedTurnReduction = 0.65f;
 
-        [Tooltip("Very small resistance so the ball slowly loses speed over time. Set 0 for infinite rolling.")]
         [Range(0f, 1.5f)]
         [SerializeField] private float rollingResistance = 0.10f;
 
-        [Tooltip("Sideways grip. Higher = less drifting. For ball feel keep this low-ish.")]
         [Range(0f, 2.5f)]
         [SerializeField] private float sidewaysGripMultiplier = 0.75f;
 
+        [Header("Collision Bump (IMPORTANT)")]
+        [SerializeField] private float bumpStrength = 4.5f;
+        [SerializeField] private float bumpSpeedFactor = 0.65f;
+        [SerializeField] private float minBumpImpulse = 1.25f;
+        [SerializeField] private float maxBumpImpulse = 10.0f;
+        [SerializeField] private float bumpCooldownSeconds = 0.08f;
+
         private Rigidbody rb;
         private PlayerStats stats;
-
         private Vector3 _baseScale;
 
-        // ===== Networked INPUT (StateAuthority writes these) =====
+        // ===== Networked INPUT =====
         [Networked] private Vector2 MoveInput { get; set; }
         [Networked] private NetworkBool BoostHeld { get; set; }
 
@@ -56,7 +48,6 @@ namespace Project.Networking.Fusion
         [Networked] private TickTimer BoostActiveTimer { get; set; }
         [Networked] private TickTimer BoostCooldownTimer { get; set; }
 
-        // Other networked state
         [Networked] private Vector2 LastMoveDir { get; set; }
         [Networked] public NetworkString<_16> PlayerName { get; private set; }
 
@@ -64,12 +55,24 @@ namespace Project.Networking.Fusion
         [Networked] private float SizeMul { get; set; } = 1f;
         [Networked] private float MassMul { get; set; } = 1f;
 
+        // ===== Networked Bump Event =====
+        [Networked] private Vector3 BumpImpulse { get; set; }
+        [Networked] private int BumpTick { get; set; }
+        [Networked] private TickTimer BumpCooldown { get; set; }
+
+        private int _lastAppliedBumpTick = -1;
+
         public override void Spawned()
         {
             rb = GetComponent<Rigidbody>();
             stats = GetComponent<PlayerStats>();
             _baseScale = transform.localScale;
-                rb.useGravity = true;
+
+            rb.useGravity = true;
+
+            // Recommended for shared/forecast
+            rb.interpolation = RigidbodyInterpolation.None;
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
             if (LastMoveDir == Vector2.zero)
                 LastMoveDir = Vector2.up;
@@ -78,7 +81,6 @@ namespace Project.Networking.Fusion
                 SetPlayerName($"P{Object.InputAuthority.RawEncoded}");
         }
 
-        /// INPUT MUST BE READ HERE (Fusion tick), NOT in Unity FixedUpdate.
         public override void FixedUpdateNetwork()
         {
             if (moveConfig == null || gameConfig == null) return;
@@ -100,35 +102,37 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            // In Shared mode, only the owning player should drive movement input.
-            if (!Object.HasStateAuthority || !Object.HasInputAuthority)
-                return;
+            // Only local owner drives input
+            if (!Object.HasInputAuthority) return;
 
-            // Read Fusion input
             NetInput input;
             if (!GetInput(out input))
             {
-                // no input this tick
-                MoveInput = Vector2.zero;
-                BoostHeld = false;
+                if (Object.HasStateAuthority)
+                {
+                    MoveInput = Vector2.zero;
+                    BoostHeld = false;
+                }
                 return;
             }
 
-            MoveInput = input.Move;
-            BoostHeld = input.Boost;
-
-            // Boost press edge
-            bool boostPressed = BoostHeld && !LastBoostHeld;
-            LastBoostHeld = BoostHeld;
-
-            if (boostPressed && (!BoostCooldownTimer.IsRunning || BoostCooldownTimer.Expired(Runner)))
+            // IMPORTANT: only StateAuthority writes Networked values
+            if (Object.HasStateAuthority)
             {
-                BoostActiveTimer = TickTimer.CreateFromSeconds(Runner, gameConfig.boostBurstDuration);
-                BoostCooldownTimer = TickTimer.CreateFromSeconds(Runner, gameConfig.boostCooldown);
+                MoveInput = input.Move;
+                BoostHeld = input.Boost;
+
+                bool boostPressed = BoostHeld && !LastBoostHeld;
+                LastBoostHeld = BoostHeld;
+
+                if (boostPressed && (!BoostCooldownTimer.IsRunning || BoostCooldownTimer.Expired(Runner)))
+                {
+                    BoostActiveTimer = TickTimer.CreateFromSeconds(Runner, gameConfig.boostBurstDuration);
+                    BoostCooldownTimer = TickTimer.CreateFromSeconds(Runner, gameConfig.boostCooldown);
+                }
             }
         }
 
-        /// PHYSICS SIM HAPPENS HERE (Unity FixedUpdate) for Forecast Physics.
         private void FixedUpdate()
         {
             if (rb == null || moveConfig == null || gameConfig == null) return;
@@ -136,21 +140,19 @@ namespace Project.Networking.Fusion
             // Apply size locally for everyone
             transform.localScale = _baseScale * SizeMul;
 
+            // Apply bump impulse deterministically
+            ApplyBumpIfNeeded();
+
             Vector2 input = MoveInput;
             bool hasInput = input.sqrMagnitude > 0.0001f;
 
             Vector2 inputDir = hasInput ? input.normalized : LastMoveDir;
-
-
             if (hasInput)
-                LastMoveDir = inputDir; // keep local direction memory
+                LastMoveDir = inputDir;
 
-
-            // Current planar velocity
             Vector2 v = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
             float speed = v.magnitude;
 
-            // Boost multiplier
             bool boostActive = BoostActiveTimer.IsRunning && Runner != null && !BoostActiveTimer.Expired(Runner);
             float boostMultiplier = boostActive ? gameConfig.boostMultiplier : 1f;
 
@@ -158,24 +160,17 @@ namespace Project.Networking.Fusion
 
             float baseSpeed = (moveConfig.baseSpeed + speedBonus) * SpeedMul * boostMultiplier;
             float maxSpeed = (moveConfig.maxSpeed + speedBonus) * SpeedMul * boostMultiplier;
-
-            // We use acceleration as our "engine force"
             float accel = moveConfig.acceleration * SpeedMul;
 
-            // Desired velocity (only if input is held). If no input: we do NOT brake.
             Vector2 desiredV = hasInput ? (inputDir * baseSpeed) : v;
 
-            // --- Steering inertia / drift ---
-            // How aligned are we with desired direction?
             Vector2 vDir = (speed > 0.001f) ? (v / speed) : inputDir;
-            float dirDot = Vector2.Dot(vDir, inputDir); // -1 opposite, +1 same
+            float dirDot = Vector2.Dot(vDir, inputDir);
 
-            // Reverse steering is harder
             float resp = steeringResponsiveness;
             if (hasInput && dirDot < 0f)
                 resp *= reverseResponsiveness;
 
-            // Harder to turn at higher speeds
             if (hasInput && maxSpeed > 0.01f)
             {
                 float speed01 = Mathf.Clamp01(speed / maxSpeed);
@@ -183,19 +178,11 @@ namespace Project.Networking.Fusion
                 resp *= Mathf.Max(0.05f, turnPenalty);
             }
 
-            // Compute velocity change we want (but we clamp how fast we can change)
             Vector2 dv = desiredV - v;
-
-            // Clamp max steering acceleration per fixed step
-            // (this is what creates that “keeps going a bit then turns” feel)
             float maxDv = accel * resp * Time.fixedDeltaTime;
             Vector2 dvClamped = Vector2.ClampMagnitude(dv, maxDv);
-
-            // Apply as velocity change (very consistent ball control)
             rb.AddForce(new Vector3(dvClamped.x, 0f, dvClamped.y), ForceMode.VelocityChange);
 
-            // --- Sideways grip (controls drift) ---
-            // Low grip = slides sideways more (ball feels slippery)
             v = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
             speed = v.magnitude;
 
@@ -204,23 +191,17 @@ namespace Project.Networking.Fusion
                 Vector2 forward = v / speed;
                 Vector2 lateral = v - forward * Vector2.Dot(v, forward);
 
-                // Use your ScriptableObject linearDrag as the base, then multiply by our grip multiplier
                 float grip = moveConfig.linearDrag * sidewaysGripMultiplier;
-
-                // Apply lateral friction as acceleration (doesn't kill forward momentum too aggressively)
                 Vector2 lateralFriction = -lateral * grip;
                 rb.AddForce(new Vector3(lateralFriction.x, 0f, lateralFriction.y), ForceMode.Acceleration);
             }
 
-            // --- Rolling resistance (optional tiny slowdown) ---
-            // This is NOT braking; just prevents infinite rolling.
             if (rollingResistance > 0f && speed > 0.001f)
             {
                 Vector2 resist = -v * rollingResistance;
                 rb.AddForce(new Vector3(resist.x, 0f, resist.y), ForceMode.Acceleration);
             }
 
-            // Clamp top speed
             v = new Vector2(rb.linearVelocity.x, rb.linearVelocity.z);
             if (v.magnitude > maxSpeed)
             {
@@ -228,7 +209,80 @@ namespace Project.Networking.Fusion
                 rb.linearVelocity = new Vector3(v.x, rb.linearVelocity.y, v.y);
             }
 
-            rb.mass = Mathf.Max(0.1f, rb.mass);
+            // Apply MassMul (your old code wasn’t really using it properly)
+            rb.mass = Mathf.Max(0.1f, 1f * MassMul);
+        }
+
+        private void ApplyBumpIfNeeded()
+        {
+            if (BumpTick <= 0) return;
+            if (_lastAppliedBumpTick == BumpTick) return;
+
+            _lastAppliedBumpTick = BumpTick;
+
+            if (BumpImpulse.sqrMagnitude > 0.000001f)
+                rb.AddForce(BumpImpulse, ForceMode.Impulse);
+        }
+
+        private void OnCollisionEnter(Collision collision) => TryBump(collision);
+        private void OnCollisionStay(Collision collision) => TryBump(collision);
+
+        private void TryBump(Collision collision)
+        {
+            if (!Object || !Object.HasStateAuthority) return;
+            if (Runner == null) return;
+
+            if (BumpCooldown.IsRunning && !BumpCooldown.Expired(Runner))
+                return;
+
+            var otherCtrl = collision.collider.GetComponentInParent<NetworkPlayerController>();
+            if (otherCtrl == null || otherCtrl == this) return;
+
+            // Deterministic single-sender rule (prevents double-impulse)
+            if (otherCtrl.Object != null && Object.Id.Raw > otherCtrl.Object.Id.Raw)
+                return;
+
+            var contact = collision.GetContact(0);
+
+            // normal points from other to this, we want direction from this -> other
+            Vector3 dirToOther = -contact.normal;
+            dirToOther.y = 0f;
+
+            if (dirToOther.sqrMagnitude < 0.0001f)
+                dirToOther = (otherCtrl.transform.position - transform.position);
+
+            dirToOther.y = 0f;
+            dirToOther.Normalize();
+
+            Vector3 myV = rb.linearVelocity; myV.y = 0f;
+            Vector3 otherV = otherCtrl.rb != null ? otherCtrl.rb.linearVelocity : Vector3.zero; otherV.y = 0f;
+
+            float relSpeed = (myV - otherV).magnitude;
+
+            float impulseMag = bumpStrength + (relSpeed * bumpSpeedFactor);
+            impulseMag = Mathf.Clamp(impulseMag, minBumpImpulse, maxBumpImpulse);
+
+            Vector3 impulseToOther = dirToOther * impulseMag;
+            Vector3 impulseToMe = -dirToOther * impulseMag;
+
+            SetBumpImpulseAuthority(impulseToMe);
+            otherCtrl.RPC_ReceiveBumpImpulse(impulseToOther);
+
+            BumpCooldown = TickTimer.CreateFromSeconds(Runner, bumpCooldownSeconds);
+        }
+
+        private void SetBumpImpulseAuthority(Vector3 impulse)
+        {
+            if (!Object.HasStateAuthority) return;
+
+            BumpImpulse = impulse;
+            BumpTick = Runner != null ? Runner.Tick.Raw : (BumpTick + 1);
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        private void RPC_ReceiveBumpImpulse(Vector3 impulse, RpcInfo info = default)
+        {
+            SetBumpImpulseAuthority(impulse);
         }
 
         public void SetPlayerName(string name)
@@ -252,9 +306,6 @@ namespace Project.Networking.Fusion
             SizeMul *= sizeMul;
             SpeedMul = Mathf.Clamp(SpeedMul * speedMul, 0.5f, 4f);
             MassMul *= massMul;
-
-            if (rb != null)
-                rb.mass *= massMul;
         }
 
         [Rpc(RpcSources.All, RpcTargets.StateAuthority)]

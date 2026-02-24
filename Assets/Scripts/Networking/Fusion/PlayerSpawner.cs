@@ -43,9 +43,25 @@ namespace Project.Networking.Fusion
 
             SpawnPlayerFor(runner.LocalPlayer);
         }
+        public void DespawnLocalPlayer()
+        {
+            if (runner == null) runner = FindObjectOfType<NetworkRunner>();
+            if (runner == null) return;
 
+            // Prefer our cached local object
+            var existing = localPlayerObject != null ? localPlayerObject : runner.GetPlayerObject(runner.LocalPlayer);
+            if (existing == null) return;
+
+            if (existing.HasStateAuthority)
+                runner.Despawn(existing);
+
+            localPlayerObject = null;
+        }
         public void SpawnPlayerFor(PlayerRef player)
         {
+            if (player != runner.LocalPlayer)
+                return; // IMPORTANT: Shared mode: only spawn local player on this peer
+
             if (runner == null)
             {
                 Debug.LogError("Spawner missing runner.");
@@ -72,7 +88,7 @@ namespace Project.Networking.Fusion
 
             Quaternion spawnRotation = GetSpawnRotationFacingCenter(t.position);
             var obj = runner.Spawn(playerPrefab, t.position, spawnRotation, player);
-
+            runner.SetPlayerObject(player, obj);
             if (player == runner.LocalPlayer)
                 localPlayerObject = obj;
 

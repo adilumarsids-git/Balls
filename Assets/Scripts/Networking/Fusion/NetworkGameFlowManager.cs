@@ -340,6 +340,74 @@ namespace Project.Networking.Fusion
             return localObj != null && !localObj.gameObject.activeSelf;
         }
 
+
+        public string GetPointsBoardText()
+        {
+            var players = FindObjectsOfType<Project.Gameplay.Player.PlayerTag>(true);
+            if (players == null || players.Length == 0)
+                return string.Empty;
+
+            var ordered = new System.Collections.Generic.List<Project.Gameplay.Player.PlayerTag>(players);
+            ordered.Sort((a, b) =>
+            {
+                int ar = GetRawRef(a);
+                int br = GetRawRef(b);
+                return ar.CompareTo(br);
+            });
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var p in ordered)
+            {
+                if (p == null) continue;
+                var netObj = p.NetObj != null ? p.NetObj : p.GetComponent<NetworkObject>();
+                if (netObj == null) continue;
+
+                int raw = netObj.InputAuthority.RawEncoded;
+                int score = 0;
+                _playerScores.TryGetValue(raw, out score);
+
+                if (sb.Length > 0)
+                    sb.Append('\n');
+
+                sb.Append(GetDisplayName(netObj));
+                sb.Append(" = ");
+                sb.Append(score);
+            }
+
+            return sb.ToString();
+        }
+
+        private int GetRawRef(Project.Gameplay.Player.PlayerTag tag)
+        {
+            if (tag == null) return int.MaxValue;
+            var netObj = tag.NetObj != null ? tag.NetObj : tag.GetComponent<NetworkObject>();
+            if (netObj == null) return int.MaxValue;
+            return netObj.InputAuthority.RawEncoded;
+        }
+
+        private string GetDisplayName(NetworkObject obj)
+        {
+            if (obj == null) return "Unknown";
+
+            var ctrl = obj.GetComponent<NetworkPlayerController>();
+            if (ctrl != null)
+            {
+                var n = ctrl.PlayerName.ToString();
+                if (!string.IsNullOrWhiteSpace(n))
+                    return n;
+            }
+
+            var appearance = obj.GetComponent<NetworkPlayerAppearance>();
+            if (appearance != null)
+            {
+                var nftName = appearance.GetLeaderboardNftDisplayName();
+                if (!string.IsNullOrWhiteSpace(nftName))
+                    return nftName;
+            }
+
+            return $"P{obj.InputAuthority.RawEncoded}";
+        }
+
         private async System.Threading.Tasks.Task SubmitWinnerAsync(string nftKey, string displayName)
         {
             try

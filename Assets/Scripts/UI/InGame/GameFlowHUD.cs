@@ -7,6 +7,7 @@ namespace Project.UI.InGame
     public class GameFlowHUD : MonoBehaviour
     {
         [SerializeField] private TMP_Text statusText;
+        [SerializeField] private TMP_Text pointsText;
 
         [Header("Copy")]
         [SerializeField] private string waitingFormat = "Waiting for more players to join... ({0}/4)";
@@ -26,8 +27,12 @@ namespace Project.UI.InGame
             if (flow == null || !flow.IsReady)
             {
                 statusText.text = "";
+                if (pointsText != null) pointsText.text = "";
                 return;
             }
+
+            if (pointsText != null)
+                pointsText.text = flow.GetPointsBoardText();
 
             // GameOver first (so it doesn't get overwritten)
             if (flow.State == MatchFlowState.GameOver)

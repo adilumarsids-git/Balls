@@ -461,6 +461,10 @@ namespace Project.Networking.Fusion
                 rb.linearVelocity = Vector3.zero;
                 rb.angularVelocity = Vector3.zero;
             }
+
+            var ctrl = obj.GetComponent<NetworkPlayerController>();
+            if (ctrl != null)
+                ctrl.RPC_ResetRoundModifiers();
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]

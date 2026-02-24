@@ -299,6 +299,36 @@ namespace Project.Networking.Fusion
             gameObject.name = name;
         }
 
+        public void ResetRoundModifiersAuthority()
+        {
+            if (!Object.HasStateAuthority) return;
+
+            SpeedMul = 1f;
+            SizeMul = 1f;
+            MassMul = 1f;
+
+            BoostHeld = false;
+            LastBoostHeld = false;
+            BoostActiveTimer = default;
+            BoostCooldownTimer = default;
+            BumpImpulse = Vector3.zero;
+            BumpTick = 0;
+            BumpCooldown = default;
+
+            if (rb != null)
+            {
+                rb.mass = 1f;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        public void RPC_ResetRoundModifiers()
+        {
+            ResetRoundModifiersAuthority();
+        }
+
         public void OnConsumablePickup(float sizeMul, float speedMul, float massMul)
         {
             if (!Object.HasStateAuthority) return;

@@ -21,10 +21,6 @@ public class FusionFullRestart : NetworkBehaviour
 
     private bool _restartStarted;
 
-    /// <summary>
-    /// Call this on the StateAuthority (Master Client object in Shared).
-    /// This will restart ALL clients to Scene 0, fully fresh.
-    /// </summary>
     public void RequestRestartAll()
     {
         if (_restartStarted) return;
@@ -38,88 +34,101 @@ public class FusionFullRestart : NetworkBehaviour
         _restartStarted = true;
         IsRestarting = true;
 
-        // Start local restart immediately (host/state authority)
-        StartCoroutine(RestartRoutine(bootstrapSceneIndex, delaySeconds));
+        // Run locally on host immediately using non-network orchestrator.
+        FusionRestartOrchestrator.Run(bootstrapSceneIndex, delaySeconds);
 
         // Tell all peers to do the same.
         RPC_RestartAllClients(bootstrapSceneIndex, delaySeconds);
     }
 
-    /// <summary>
-    /// Runs on every client. Each client tears down runner + DDOL and loads scene 0.
-    /// </summary>
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_RestartAllClients(int sceneIndex, float delay)
     {
         if (_restartStarted) return;
         _restartStarted = true;
         IsRestarting = true;
-        StartCoroutine(RestartRoutine(sceneIndex, delay));
+        FusionRestartOrchestrator.Run(sceneIndex, delay);
     }
 
-    private IEnumerator RestartRoutine(int sceneIndex, float delay)
+    private sealed class FusionRestartOrchestrator : MonoBehaviour
     {
-        // optional delay for UX
-        if (delay > 0f)
-            yield return new WaitForSeconds(delay);
+        private static FusionRestartOrchestrator _instance;
+        private bool _running;
 
-        // 1) Shutdown all Fusion runners in this client
-        yield return ShutdownAllRunners();
-
-        // 2) Destroy everything in DontDestroyOnLoad (true cold restart)
-        DestroyAllDontDestroyOnLoadObjects();
-
-        // 3) Reset bootstrap static state + load bootstrap scene fresh
-        Project.Core.Bootstrap.ProjectBootstrap.ResetBootStateForRestart();
-        SceneManager.LoadScene(sceneIndex, LoadSceneMode.Single);
-    }
-
-    private static IEnumerator ShutdownAllRunners()
-    {
-        var runners = UnityEngine.Object.FindObjectsOfType<NetworkRunner>(true);
-
-        foreach (var r in runners)
+        public static void Run(int sceneIndex, float delay)
         {
-            if (r == null) continue;
-
-            // Shutdown tears down networking + simulation
-            r.Shutdown();
-        }
-
-        // Wait until runners are actually not running (a few frames is usually enough)
-        float timeout = 5f;
-        while (timeout > 0f)
-        {
-            bool anyRunning = false;
-            var stillThere = UnityEngine.Object.FindObjectsOfType<NetworkRunner>(true);
-            foreach (var r in stillThere)
+            if (_instance == null)
             {
-                if (r != null && r.IsRunning)
-                {
-                    anyRunning = true;
-                    break;
-                }
+                var go = new GameObject("FusionRestartOrchestrator");
+                DontDestroyOnLoad(go);
+                _instance = go.AddComponent<FusionRestartOrchestrator>();
             }
 
-            if (!anyRunning)
-                break;
-
-            timeout -= Time.unscaledDeltaTime;
-            yield return null;
+            _instance.Begin(sceneIndex, delay);
         }
-    }
 
-    private static void DestroyAllDontDestroyOnLoadObjects()
-    {
-        // Unity keeps DontDestroyOnLoad objects in a special hidden scene.
-        var ddolScene = SceneManager.GetSceneByName("DontDestroyOnLoad");
-        if (!ddolScene.IsValid()) return;
-
-        var roots = ddolScene.GetRootGameObjects();
-        for (int i = 0; i < roots.Length; i++)
+        private void Begin(int sceneIndex, float delay)
         {
-            // This will destroy ALL persistent objects from previous run
-            UnityEngine.Object.Destroy(roots[i]);
+            if (_running) return;
+            _running = true;
+            StartCoroutine(RestartRoutine(sceneIndex, delay));
+        }
+
+        private IEnumerator RestartRoutine(int sceneIndex, float delay)
+        {
+            if (delay > 0f)
+                yield return new WaitForSecondsRealtime(delay);
+
+            yield return ShutdownAllRunners();
+
+            DestroyAllDontDestroyOnLoadObjects();
+
+            Project.Core.Bootstrap.ProjectBootstrap.ResetBootStateForRestart();
+            SceneManager.LoadScene(sceneIndex, LoadSceneMode.Single);
+
+            _running = false;
+        }
+
+        private static IEnumerator ShutdownAllRunners()
+        {
+            var runners = Object.FindObjectsOfType<NetworkRunner>(true);
+
+            foreach (var r in runners)
+            {
+                if (r == null) continue;
+                r.Shutdown();
+            }
+
+            float timeout = 5f;
+            while (timeout > 0f)
+            {
+                bool anyRunning = false;
+                var stillThere = Object.FindObjectsOfType<NetworkRunner>(true);
+                foreach (var r in stillThere)
+                {
+                    if (r != null && r.IsRunning)
+                    {
+                        anyRunning = true;
+                        break;
+                    }
+                }
+
+                if (!anyRunning)
+                    break;
+
+                timeout -= Time.unscaledDeltaTime;
+                yield return null;
+            }
+        }
+
+        private static void DestroyAllDontDestroyOnLoadObjects()
+        {
+            var ddolScene = SceneManager.GetSceneByName("DontDestroyOnLoad");
+            if (!ddolScene.IsValid()) return;
+
+            var roots = ddolScene.GetRootGameObjects();
+            for (int i = 0; i < roots.Length; i++)
+                Object.Destroy(roots[i]);
         }
     }
 }

@@ -166,7 +166,12 @@ namespace Project.Networking.Fusion
         }
 
         // ===== Unused callbacks (kept empty) =====
-        public void OnPlayerLeft(NetworkRunner runner, PlayerRef player) { }
+        public void OnPlayerLeft(NetworkRunner runner, PlayerRef player)
+        {
+            var flow = NetworkGameFlowManager.Instance;
+            if (flow != null && flow.IsReady)
+                flow.NotifyPlayerLeft(player);
+        }
         public void OnInput(NetworkRunner runner, NetworkInput input) { }
 
         public void OnShutdown(NetworkRunner runner, ShutdownReason shutdownReason)

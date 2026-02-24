@@ -42,6 +42,7 @@ namespace Project.Networking.Fusion
 
         [Networked] public NetworkString<_32> WinnerName { get; private set; }
         [Networked] public int CurrentRound { get; private set; }
+        [Networked] private NetworkBool MatchLocked { get; set; }
         public bool IsReady { get; private set; }
         [Header("Consumables")]
         [SerializeField] private NetworkPrefabRef consumablePrefab;
@@ -51,6 +52,8 @@ namespace Project.Networking.Fusion
         [Networked] private TickTimer ConsumableSpawnTimer { get; set; }
         private bool _restartQueued;
         private readonly System.Collections.Generic.Dictionary<int, int> _playerScores = new System.Collections.Generic.Dictionary<int, int>();
+        private readonly System.Collections.Generic.Dictionary<int, string> _playerDisplayNames = new System.Collections.Generic.Dictionary<int, string>();
+        private readonly System.Collections.Generic.HashSet<int> _leftPlayers = new System.Collections.Generic.HashSet<int>();
         public override void Spawned()
         {
             Instance = this;
@@ -67,11 +70,14 @@ namespace Project.Networking.Fusion
                     State = MatchFlowState.WaitingForPlayers;
                     CurrentPlayers = 0;
                     CurrentRound = 1;
+                    MatchLocked = false;
                     CountdownTimer = default;
                     BackToMenuTimer = default;
                     WinnerName = default;
                     ConsumableSpawnTimer = default;
                     _playerScores.Clear();
+                    _playerDisplayNames.Clear();
+                    _leftPlayers.Clear();
                 }
             }
         }
@@ -89,6 +95,7 @@ namespace Project.Networking.Fusion
 
             // Always refresh player count while not shutdown
             CurrentPlayers = CountPlayers();
+            CaptureParticipantSnapshot();
 
             if (State == MatchFlowState.GameOver)
             {
@@ -107,8 +114,8 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            // Waiting for players
-            if (CurrentPlayers < requiredPlayers)
+            // Waiting for players (only before match is locked)
+            if (!MatchLocked && CurrentPlayers < requiredPlayers)
             {
                 State = MatchFlowState.WaitingForPlayers;
                 CountdownTimer = default;
@@ -127,6 +134,7 @@ namespace Project.Networking.Fusion
             if (State == MatchFlowState.Countdown && CountdownTimer.Expired(Runner))
             {
                 State = MatchFlowState.Playing;
+                MatchLocked = true;
                 CountdownTimer = default;
                 ConsumableSpawnTimer = TickTimer.CreateFromSeconds(Runner, consumableInitialSpawnDelay);
                 return;
@@ -221,6 +229,8 @@ namespace Project.Networking.Fusion
                 _playerScores.TryGetValue(winnerKey, out current);
                 current++;
                 _playerScores[winnerKey] = current;
+                _leftPlayers.Remove(winnerKey);
+                _playerDisplayNames[winnerKey] = GetDisplayName(winnerObj);
                 RPC_AnnounceRoundWinner(winnerName, CurrentRound, totalRounds, winnerObj.InputAuthority.RawEncoded, current);
             }
             else
@@ -343,33 +353,30 @@ namespace Project.Networking.Fusion
 
         public string GetPointsBoardText()
         {
-            var players = FindObjectsOfType<Project.Gameplay.Player.PlayerTag>(true);
-            if (players == null || players.Length == 0)
+            CaptureParticipantSnapshot();
+            if (_playerScores.Count == 0 && _playerDisplayNames.Count == 0)
                 return string.Empty;
 
-            var ordered = new System.Collections.Generic.List<Project.Gameplay.Player.PlayerTag>(players);
-            ordered.Sort((a, b) =>
-            {
-                int ar = GetRawRef(a);
-                int br = GetRawRef(b);
-                return ar.CompareTo(br);
-            });
+            var keys = new System.Collections.Generic.HashSet<int>(_playerDisplayNames.Keys);
+            foreach (var k in _playerScores.Keys)
+                keys.Add(k);
+
+            var ordered = new System.Collections.Generic.List<int>(keys);
+            ordered.Sort();
 
             var sb = new System.Text.StringBuilder();
-            foreach (var p in ordered)
+            foreach (var raw in ordered)
             {
-                if (p == null) continue;
-                var netObj = p.NetObj != null ? p.NetObj : p.GetComponent<NetworkObject>();
-                if (netObj == null) continue;
-
-                int raw = netObj.InputAuthority.RawEncoded;
                 int score = 0;
                 _playerScores.TryGetValue(raw, out score);
 
                 if (sb.Length > 0)
                     sb.Append('\n');
+                var displayName = GetDisplayNameByRawRef(raw);
+                sb.Append(displayName);
+                if (_leftPlayers.Contains(raw))
+                    sb.Append(" (left)");
 
-                sb.Append(GetDisplayName(netObj));
                 sb.Append(" = ");
                 sb.Append(score);
             }
@@ -377,13 +384,46 @@ namespace Project.Networking.Fusion
             return sb.ToString();
         }
 
-        private int GetRawRef(Project.Gameplay.Player.PlayerTag tag)
+        private void CaptureParticipantSnapshot()
         {
-            if (tag == null) return int.MaxValue;
-            var netObj = tag.NetObj != null ? tag.NetObj : tag.GetComponent<NetworkObject>();
-            if (netObj == null) return int.MaxValue;
-            return netObj.InputAuthority.RawEncoded;
+            var players = FindObjectsOfType<Project.Gameplay.Player.PlayerTag>(true);
+            foreach (var p in players)
+            {
+                if (p == null) continue;
+                var netObj = p.NetObj != null ? p.NetObj : p.GetComponent<NetworkObject>();
+                if (netObj == null) continue;
+
+                int raw = netObj.InputAuthority.RawEncoded;
+                if (!_playerScores.ContainsKey(raw))
+                    _playerScores[raw] = 0;
+
+                _playerDisplayNames[raw] = GetDisplayName(netObj);
+            }
         }
+
+        private string GetDisplayNameByRawRef(int raw)
+        {
+            string name;
+            if (_playerDisplayNames.TryGetValue(raw, out name) && !string.IsNullOrWhiteSpace(name))
+                return name;
+
+            var obj = FindPlayerByRawRef(raw);
+            if (obj != null)
+            {
+                name = GetDisplayName(obj);
+                _playerDisplayNames[raw] = name;
+                return name;
+            }
+
+            return $"P{raw}";
+        }
+
+        public void NotifyPlayerLeft(PlayerRef player)
+        {
+            if (!Runner.IsSharedModeMasterClient || !Object.HasStateAuthority) return;
+            RPC_ReportPlayerLeft(player.RawEncoded);
+        }
+
 
         private string GetDisplayName(NetworkObject obj)
         {
@@ -533,6 +573,29 @@ namespace Project.Networking.Fusion
             var ctrl = obj.GetComponent<NetworkPlayerController>();
             if (ctrl != null)
                 ctrl.RPC_ResetRoundModifiers();
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.All)]
+        public void RPC_ReportPlayerLeft(int rawRef)
+        {
+            if (rawRef == PlayerRef.None.RawEncoded)
+                return;
+
+            _leftPlayers.Add(rawRef);
+            if (!_playerScores.ContainsKey(rawRef))
+                _playerScores[rawRef] = 0;
+
+            if (!_playerDisplayNames.ContainsKey(rawRef))
+                _playerDisplayNames[rawRef] = $"P{rawRef}";
+
+            var playerObj = FindPlayerByRawRef(rawRef);
+            if (Runner != null && Runner.IsSharedModeMasterClient && Object != null && Object.HasStateAuthority)
+            {
+                if (State == MatchFlowState.Playing && playerObj != null && playerObj.gameObject.activeSelf)
+                {
+                    NotifyEliminated(playerObj);
+                }
+            }
         }
 
         [Rpc(RpcSources.StateAuthority, RpcTargets.All)]

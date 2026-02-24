@@ -432,11 +432,9 @@ namespace Project.Networking.Fusion
             var ctrl = obj.GetComponent<NetworkPlayerController>();
             if (ctrl != null)
             {
-                // Avoid reading Networked PlayerName here because this method can run
-                // while a behaviour is not fully spawned on some peers.
-                var n = ctrl.gameObject.name;
-                if (!string.IsNullOrWhiteSpace(n))
-                    return n;
+                string playerName;
+                if (ctrl.TryGetPlayerName(out playerName))
+                    return playerName;
             }
 
             var appearance = obj.GetComponent<NetworkPlayerAppearance>();

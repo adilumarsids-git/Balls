@@ -61,9 +61,11 @@ namespace Project.Networking.Fusion
         [Networked] private TickTimer BumpCooldown { get; set; }
 
         private int _lastAppliedBumpTick = -1;
+        private bool _isNetworkSpawned;
 
         public override void Spawned()
         {
+            _isNetworkSpawned = true;
             rb = GetComponent<Rigidbody>();
             stats = GetComponent<PlayerStats>();
             _baseScale = transform.localScale;
@@ -131,6 +133,12 @@ namespace Project.Networking.Fusion
                     BoostCooldownTimer = TickTimer.CreateFromSeconds(Runner, gameConfig.boostCooldown);
                 }
             }
+        }
+
+
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            _isNetworkSpawned = false;
         }
 
         private void FixedUpdate()
@@ -283,6 +291,22 @@ namespace Project.Networking.Fusion
         private void RPC_ReceiveBumpImpulse(Vector3 impulse, RpcInfo info = default)
         {
             SetBumpImpulseAuthority(impulse);
+        }
+
+
+        public bool TryGetPlayerName(out string name)
+        {
+            name = null;
+
+            if (!_isNetworkSpawned || Object == null)
+                return false;
+
+            var value = PlayerName.ToString();
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            name = value;
+            return true;
         }
 
         public void SetPlayerName(string name)

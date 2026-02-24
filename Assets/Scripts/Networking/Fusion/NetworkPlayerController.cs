@@ -298,7 +298,7 @@ namespace Project.Networking.Fusion
         {
             name = null;
 
-            if (!_isNetworkSpawned || Object == null)
+            if (!_isNetworkSpawned || Object == null || Runner == null || !Runner.IsRunning)
                 return false;
 
             var value = PlayerName.ToString();

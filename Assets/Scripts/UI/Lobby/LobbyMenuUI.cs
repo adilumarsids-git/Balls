@@ -4,6 +4,7 @@ using Fusion;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using Project.Networking.Fusion;
 using Project.Wallet;
 
@@ -34,13 +35,16 @@ namespace Project.UI.Lobby
         private readonly List<SessionListItemUI> spawned = new List<SessionListItemUI> ();
         [SerializeField] private TMP_InputField nameInput;
 
+        private bool _recoveringLauncher;
+
         private void Awake()
         {
             launcher = FindObjectOfType<FusionLauncher>();
 
             if (launcher == null)
             {
-                Debug.LogError("FusionLauncher not found! Is NetworkBootstrap in Bootstrap scene?");
+                Debug.LogWarning("FusionLauncher not found in menu scene. Attempting bootstrap recovery.");
+                StartBootstrapRecovery();
                 return;
             }
             refreshButton.onClick.AddListener(() => _ = Refresh());
@@ -50,25 +54,33 @@ namespace Project.UI.Lobby
 
         private async void OnEnable()
         {
-            nameInput.text = Project.Core.LocalProfile.GetName();
+            if (nameInput != null)
+                nameInput.text = Project.Core.LocalProfile.GetName();
+
+            if (!EnsureLauncherAvailable())
+                return;
+
             launcher.SessionListChanged += OnSessionListChanged;
             await Refresh();
         }
 
         private void OnDisable()
         {
-            launcher.SessionListChanged -= OnSessionListChanged;
+            if (launcher != null)
+                launcher.SessionListChanged -= OnSessionListChanged;
         }
 
         private async Task Refresh()
         {
+            if (!EnsureLauncherAvailable()) return;
             await launcher.JoinPublicLobby();
             // session list will arrive via callback
         }
 
         private async Task Host()
         {
-            Project.Core.LocalProfile.SetName(nameInput.text);
+            if (!EnsureLauncherAvailable()) return;
+            Project.Core.LocalProfile.SetName(nameInput != null ? nameInput.text : string.Empty);
             if (!EnsureSelectedNft())
                 return;
             string room = roomNameInput.text.Trim();
@@ -86,7 +98,32 @@ namespace Project.UI.Lobby
 
             if (!EnsureSelectedNft())
                 return;
+            if (!EnsureLauncherAvailable()) return;
             await launcher.Join(room);
+        }
+
+
+        private bool EnsureLauncherAvailable()
+        {
+            if (launcher != null)
+                return true;
+
+            launcher = FindObjectOfType<FusionLauncher>();
+            if (launcher != null)
+                return true;
+
+            StartBootstrapRecovery();
+            return false;
+        }
+
+        private void StartBootstrapRecovery()
+        {
+            if (_recoveringLauncher)
+                return;
+
+            _recoveringLauncher = true;
+            // Scene 0 contains NetworkBootstrap (FusionLauncher + Runner).
+            SceneManager.LoadScene(0);
         }
 
         private bool EnsureSelectedNft()

@@ -120,7 +120,7 @@ namespace Project.Networking.Fusion
         public bool TryGetSelectedNftId(out string id)
         {
             id = null;
-            if (!_isNetworkSpawned || Object == null)
+            if (!_isNetworkSpawned || Object == null || Runner == null || !Runner.IsRunning)
                 return false;
 
             id = SelectedNftId.ToString();
@@ -130,7 +130,7 @@ namespace Project.Networking.Fusion
         public bool TryGetSelectedNftMint(out string mint)
         {
             mint = null;
-            if (!_isNetworkSpawned || Object == null)
+            if (!_isNetworkSpawned || Object == null || Runner == null || !Runner.IsRunning)
                 return false;
 
             mint = SelectedNftMint.ToString();

@@ -61,9 +61,11 @@ namespace Project.Networking.Fusion
         [Networked] private TickTimer BumpCooldown { get; set; }
 
         private int _lastAppliedBumpTick = -1;
+        private bool _isNetworkSpawned;
 
         public override void Spawned()
         {
+            _isNetworkSpawned = true;
             rb = GetComponent<Rigidbody>();
             stats = GetComponent<PlayerStats>();
             _baseScale = transform.localScale;
@@ -131,6 +133,12 @@ namespace Project.Networking.Fusion
                     BoostCooldownTimer = TickTimer.CreateFromSeconds(Runner, gameConfig.boostCooldown);
                 }
             }
+        }
+
+
+        public override void Despawned(NetworkRunner runner, bool hasState)
+        {
+            _isNetworkSpawned = false;
         }
 
         private void FixedUpdate()
@@ -285,6 +293,22 @@ namespace Project.Networking.Fusion
             SetBumpImpulseAuthority(impulse);
         }
 
+
+        public bool TryGetPlayerName(out string name)
+        {
+            name = null;
+
+            if (!_isNetworkSpawned || Object == null || Runner == null || !Runner.IsRunning)
+                return false;
+
+            var value = PlayerName.ToString();
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            name = value;
+            return true;
+        }
+
         public void SetPlayerName(string name)
         {
             if (!Object.HasStateAuthority) return;
@@ -297,6 +321,36 @@ namespace Project.Networking.Fusion
 
             PlayerName = name;
             gameObject.name = name;
+        }
+
+        public void ResetRoundModifiersAuthority()
+        {
+            if (!Object.HasStateAuthority) return;
+
+            SpeedMul = 1f;
+            SizeMul = 1f;
+            MassMul = 1f;
+
+            BoostHeld = false;
+            LastBoostHeld = false;
+            BoostActiveTimer = default;
+            BoostCooldownTimer = default;
+            BumpImpulse = Vector3.zero;
+            BumpTick = 0;
+            BumpCooldown = default;
+
+            if (rb != null)
+            {
+                rb.mass = 1f;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+        }
+
+        [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+        public void RPC_ResetRoundModifiers()
+        {
+            ResetRoundModifiersAuthority();
         }
 
         public void OnConsumablePickup(float sizeMul, float speedMul, float massMul)

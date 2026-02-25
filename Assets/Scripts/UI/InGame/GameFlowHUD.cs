@@ -7,11 +7,14 @@ namespace Project.UI.InGame
     public class GameFlowHUD : MonoBehaviour
     {
         [SerializeField] private TMP_Text statusText;
+        [SerializeField] private TMP_Text pointsText;
 
         [Header("Copy")]
         [SerializeField] private string waitingFormat = "Waiting for more players to join... ({0}/4)";
         [SerializeField] private string countdownFormat = "Game starts in {0}";
         [SerializeField] private string goText = "GO!";
+        [SerializeField] private string eliminatedText = "You fell! Waiting for the round to finish...";
+        [SerializeField] private string roundFormat = "Round {0}/{1}";
 
         private float goUntil;
 
@@ -24,8 +27,12 @@ namespace Project.UI.InGame
             if (flow == null || !flow.IsReady)
             {
                 statusText.text = "";
+                if (pointsText != null) pointsText.text = "";
                 return;
             }
+
+            if (pointsText != null)
+                pointsText.text = flow.GetPointsBoardText();
 
             // GameOver first (so it doesn't get overwritten)
             if (flow.State == MatchFlowState.GameOver)
@@ -48,10 +55,17 @@ namespace Project.UI.InGame
             }
 
             // Playing
+            if (flow.IsLocalPlayerEliminated())
+            {
+                statusText.text = eliminatedText;
+                return;
+            }
+
+            string roundText = string.Format(roundFormat, flow.CurrentRound, flow.TotalRounds);
             if (Time.time < goUntil)
-                statusText.text = goText;
+                statusText.text = $"{goText}\n{roundText}";
             else
-                statusText.text = "";
+                statusText.text = roundText;
         }
         // Optional: if you want GO flash exactly when playing starts,
         // call this from a small script that detects state change.

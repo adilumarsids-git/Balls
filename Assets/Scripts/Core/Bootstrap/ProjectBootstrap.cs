@@ -17,6 +17,8 @@ namespace Project.Core.Bootstrap
 
         private void Awake()
         {
+            FusionFullRestart.ClearRestartFlag();
+
             if (booted)
             {
                 Destroy(gameObject);

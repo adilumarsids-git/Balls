@@ -100,7 +100,8 @@ namespace Project.Networking.Fusion
                 return;
             }
 
-            if (!Object.HasStateAuthority)
+            // In Shared mode, only the owning player should drive movement input.
+            if (!Object.HasStateAuthority || !Object.HasInputAuthority)
                 return;
 
             // Read Fusion input
